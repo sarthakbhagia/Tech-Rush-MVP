@@ -20,7 +20,7 @@
 .cproject
 .settings/
 
-# Flutter/Dart build & tool artifacts
+# Flutter / Dart build & tool artifacts
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
@@ -28,9 +28,38 @@
 .pub-cache/
 .pub/
 build/
+ephemeral/
 
-# Symbol files
+# Xcode & iOS build artifacts & Pods
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/App.framework
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/Flutter/flutter_assets/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/ServiceDefinitions
+**/ios/Runner.xcworkspace/
+**/ios/Pods/
+**/ios/Podfile.lock
+
+# Android build artifacts
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/key.properties
+**/android/local.properties
+**/android/.gradle/
+
+# Symbol files & IDE artifacts
 *.darttool
+*.mode1v3
+*.mode2v3
+*.moved-aside
+*.pbxuser
+*.perspectivev3
 
 # Local Environment files
 .env
