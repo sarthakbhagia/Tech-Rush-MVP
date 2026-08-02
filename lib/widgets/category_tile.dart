@@ -27,11 +27,11 @@ class CategoryTile extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // 1. Base Card Container (Uniform size and inner layout for all tiles)
+          // 1. Base Card Container (Uniform size and reserved inner padding for all tiles)
           Container(
             width: double.infinity,
             height: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            padding: const EdgeInsets.only(top: 12, bottom: 8, left: 4, right: 4),
             decoration: BoxDecoration(
               color: AppColors.surface,
               borderRadius: AppRadii.card,
@@ -39,11 +39,11 @@ class CategoryTile extends StatelessWidget {
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 2),
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 40,
+                  height: 40,
                   decoration: const BoxDecoration(
                     color: AppColors.surfaceRaised,
                     shape: BoxShape.circle,
@@ -51,7 +51,7 @@ class CategoryTile extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Icon(
                     icon,
-                    size: 22,
+                    size: 20,
                     color: AppColors.brand,
                   ),
                 ),
@@ -71,17 +71,17 @@ class CategoryTile extends StatelessWidget {
             ),
           ),
 
-          // 2. Uniform Badge Positioning (Anchored Top-Center for consistent alignment across all cards)
+          // 2. Uniform Badge Positioning (Anchored Top-Center with fixed negative offset for all cards with badges)
           if (badgeText != null)
             Positioned(
-              top: -8,
+              top: -9,
               left: 0,
               right: 0,
               child: Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 2,
+                    horizontal: 7,
+                    vertical: 2.5,
                   ),
                   decoration: BoxDecoration(
                     color: badgeBg ?? AppColors.brandSubtle,
@@ -97,7 +97,7 @@ class CategoryTile extends StatelessWidget {
                       fontSize: 7.5,
                       fontWeight: FontWeight.bold,
                       color: badgeColor ?? AppColors.brand,
-                      height: 1.1,
+                      height: 1.0,
                     ),
                   ),
                 ),

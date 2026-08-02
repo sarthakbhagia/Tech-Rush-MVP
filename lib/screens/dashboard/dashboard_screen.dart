@@ -456,7 +456,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         clipBehavior: Clip.none,
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: 10),
                         mainAxisSpacing: 14,
                         crossAxisSpacing: 14,
                         childAspectRatio: 0.95,
