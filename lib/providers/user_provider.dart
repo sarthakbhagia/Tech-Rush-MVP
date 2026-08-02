@@ -195,7 +195,9 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       user = SupabaseService().client.auth.currentUser;
     }
 
-    final targetUserId = user?.id ?? 'user_${formattedPhone.replaceAll('+', '')}';
+    final cleanDigits = phone.replaceAll(RegExp(r'\D'), '').padLeft(12, '0');
+    final String targetUserId = user?.id ??
+        '00000000-0000-0000-0000-${cleanDigits.substring(cleanDigits.length - 12)}';
 
     if (fullName != null && streetAddress != null && locality != null) {
       // New User Sign-Up registration

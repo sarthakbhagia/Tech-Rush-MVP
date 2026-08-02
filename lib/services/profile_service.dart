@@ -6,6 +6,10 @@ import 'supabase_service.dart';
 class ProfileService {
   final SupabaseClient _client = SupabaseService().client;
 
+  static final RegExp _uuidRegExp = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
+
   /// Creates or updates a user profile in Supabase public.profiles table
   Future<bool> upsertProfile({
     required String userId,
@@ -17,6 +21,13 @@ class ProfileService {
     required String phone,
     String role = 'employer',
   }) async {
+    if (!_uuidRegExp.hasMatch(userId)) {
+      if (kDebugMode) {
+        print('ℹ️ [ProfileService] Skipping DB upsert for demo non-UUID user: $userId');
+      }
+      return true;
+    }
+
     try {
       final data = {
         'id': userId,
@@ -45,6 +56,13 @@ class ProfileService {
 
   /// Fetches profile by Supabase Auth user ID
   Future<UserProfile?> fetchProfile(String userId) async {
+    if (!_uuidRegExp.hasMatch(userId)) {
+      if (kDebugMode) {
+        print('ℹ️ [ProfileService] Skipping DB fetch for demo non-UUID user: $userId');
+      }
+      return null;
+    }
+
     try {
       final res = await _client
           .from('profiles')
