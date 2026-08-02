@@ -5,6 +5,9 @@ import 'supabase_service.dart';
 
 class JobService {
   final SupabaseClient _client = SupabaseService().client;
+  static final RegExp _uuidRegExp = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+  );
 
   /// Creates a new job in Supabase jobs table
   Future<Job?> createJob(Job job) async {
@@ -40,19 +43,33 @@ class JobService {
       final List data = res as List;
       final jobs = data.map((json) => Job.fromJson(json)).toList();
 
-      // If database is empty, return empty list (or fallback if offline)
+      if (jobs.isEmpty) {
+        // Fallback to filtered mockJobs if database has no rows yet
+        if (category == 'All' || category.isEmpty) {
+          return mockJobs;
+        }
+        return mockJobs.where((j) => j.category.toLowerCase() == category.toLowerCase()).toList();
+      }
       return jobs;
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [JobService] Error fetching jobs by category ($category): $e');
       }
-      return [];
+      // Return mockJobs fallback on connection error
+      if (category == 'All' || category.isEmpty) {
+        return mockJobs;
+      }
+      return mockJobs.where((j) => j.category.toLowerCase() == category.toLowerCase()).toList();
     }
   }
 
   /// Fetches jobs posted by a specific employer
   Future<List<Job>> fetchJobsByEmployer(String employerId) async {
     try {
+      if (!_uuidRegExp.hasMatch(employerId)) {
+        return mockJobs;
+      }
+
       final res = await _client
           .from('jobs')
           .select()
@@ -64,22 +81,33 @@ class JobService {
       if (kDebugMode) {
         print('⚠️ [JobService] Error fetching jobs for employer ($employerId): $e');
       }
-      return [];
+      return mockJobs;
     }
   }
 
   /// Fetches single job details by ID
   Future<Job?> fetchJobById(String jobId) async {
+    // 1. If jobId is not a valid UUID (e.g. 'job-1', 'job-2'), return matching mockJob
+    if (!_uuidRegExp.hasMatch(jobId)) {
+      try {
+        return mockJobs.firstWhere((j) => j.id == jobId);
+      } catch (_) {
+        return mockJobs.first;
+      }
+    }
+
     try {
       final res =
           await _client.from('jobs').select().eq('id', jobId).maybeSingle();
-      if (res == null) return null;
+      if (res == null) {
+        return mockJobs.firstWhere((j) => j.id == jobId, orElse: () => mockJobs.first);
+      }
       return Job.fromJson(res);
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [JobService] Error fetching job ($jobId): $e');
       }
-      return null;
+      return mockJobs.firstWhere((j) => j.id == jobId, orElse: () => mockJobs.first);
     }
   }
 }

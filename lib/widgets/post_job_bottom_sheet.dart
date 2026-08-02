@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/job.dart';
 import '../providers/job_provider.dart';
 import '../providers/user_provider.dart';
+import '../services/storage_service.dart';
 import 'app_bottom_sheet.dart';
 
 void openPostJobBottomSheet(BuildContext context, WidgetRef ref, {String? initialCategory}) {
@@ -66,6 +68,17 @@ class __PostJobBottomSheetContentState
     super.dispose();
   }
 
+  XFile? _jobImageFile;
+  final ImagePicker _picker = ImagePicker();
+  final StorageService _storageService = StorageService();
+
+  Future<void> _handlePickJobImage() async {
+    final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file != null) {
+      setState(() => _jobImageFile = file);
+    }
+  }
+
   Future<void> _handlePostJob() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -80,21 +93,30 @@ class __PostJobBottomSheetContentState
       _errorMessage = null;
     });
 
+    String? imageUrl;
+    if (_jobImageFile != null) {
+      imageUrl = await _storageService.uploadJobImage(
+        _jobImageFile!,
+        'temp_${DateTime.now().millisecondsSinceEpoch}',
+      );
+    }
+
     final newJob = Job(
       id: '',
       title: title,
       category: _selectedCategory,
       description: desc,
       wage: price,
-      originalWage: price > 0 ? price * 1.15 : null,
+      originalWage: _isUrgent ? (price * 1.2).roundToDouble() : null,
       status: 'open',
       rating: 5.0,
       reviewCount: 0,
-      location: location.isNotEmpty ? location : user.shortAddress,
+      location: location.isNotEmpty ? location : 'Indiranagar, BLR',
       date: 'Today',
       employerName: user.name.isNotEmpty ? user.name : 'Employer',
-      urgent: _isUrgent,
       verified: true,
+      urgent: _isUrgent,
+      imageUrl: imageUrl,
     );
 
     final created =
@@ -292,9 +314,56 @@ class __PostJobBottomSheetContentState
               style: GoogleFonts.inter(fontSize: 11, color: AppColors.inkMuted),
             ),
             value: _isUrgent,
-            activeColor: AppColors.brand,
+            activeThumbColor: AppColors.brand,
             onChanged: (val) => setState(() => _isUrgent = val),
             contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Optional Job Site Photo Attachment
+          Text(
+            'OPTIONAL JOB SITE PHOTO',
+            style: GoogleFonts.spaceMono(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: AppColors.inkMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: _handlePickJobImage,
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceRaised,
+                borderRadius: AppRadii.control,
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _jobImageFile != null ? Icons.check_circle_rounded : Icons.add_a_photo_rounded,
+                    color: _jobImageFile != null ? AppColors.success : AppColors.brand,
+                    size: 20,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      _jobImageFile != null
+                          ? 'Photo attached: ${_jobImageFile!.name}'
+                          : 'Attach photo of job site (e.g. sofa, wall)',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: _jobImageFile != null ? AppColors.inkPrimary : AppColors.inkMuted,
+                        fontWeight: _jobImageFile != null ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
 

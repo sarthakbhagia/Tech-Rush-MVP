@@ -248,6 +248,42 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     } catch (_) {}
     state = const UserProfile(isLoggedIn: false);
   }
+  /// Local & remote profile state update helper
+  Future<void> updateProfile({
+    String? name,
+    String? phone,
+    String? email,
+    String? streetAddress,
+    String? locality,
+    String? city,
+    String? pincode,
+    String? photoUrl,
+  }) async {
+    state = state.copyWith(
+      name: name,
+      phone: phone,
+      email: email,
+      streetAddress: streetAddress,
+      locality: locality,
+      city: city,
+      pincode: pincode,
+      photoUrl: photoUrl,
+    );
+
+    final user = SupabaseService().client.auth.currentUser;
+    if (user != null) {
+      await _profileService.upsertProfile(
+        userId: user.id,
+        fullName: state.name,
+        streetAddress: state.streetAddress,
+        locality: state.locality,
+        city: state.city,
+        email: state.email,
+        phone: state.phone,
+        photoUrl: state.photoUrl,
+      );
+    }
+  }
 }
 
 final userProfileProvider =

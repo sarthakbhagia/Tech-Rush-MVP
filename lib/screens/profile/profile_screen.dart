@@ -8,7 +8,11 @@ import '../../widgets/trust_badge_row.dart';
 import '../../widgets/rating_breakdown.dart';
 import '../../widgets/app_bottom_sheet.dart';
 import '../../widgets/address_bottom_sheet.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/review_provider.dart';
+import '../../services/storage_service.dart';
+import '../../services/work_sample_service.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -18,6 +22,69 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  final ImagePicker _picker = ImagePicker();
+  final StorageService _storageService = StorageService();
+  final WorkSampleService _workSampleService = WorkSampleService();
+  List<String> _workSamples = [];
+  bool _isUploadingPhoto = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWorkSamples();
+  }
+
+  Future<void> _loadWorkSamples() async {
+    final user = ref.read(userProfileProvider);
+    final workerId = user.phone.isNotEmpty ? user.phone : 'worker_${user.name}';
+    final samples = await _workSampleService.fetchWorkSamples(workerId);
+    if (mounted) {
+      setState(() => _workSamples = samples);
+    }
+  }
+
+  Future<void> _handlePickProfilePhoto() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (pickedFile == null) return;
+
+    setState(() => _isUploadingPhoto = true);
+    final url = await _storageService.uploadProfilePhoto(pickedFile);
+    if (mounted) {
+      setState(() => _isUploadingPhoto = false);
+      if (url != null) {
+        ref.read(userProfileProvider.notifier).updateProfile(photoUrl: url);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.success,
+            content: Text('Profile photo updated!', style: GoogleFonts.inter(fontSize: 13, color: Colors.white)),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _handlePickWorkSample() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (pickedFile == null) return;
+
+    final user = ref.read(userProfileProvider);
+    final workerId = user.phone.isNotEmpty ? user.phone : 'worker_${user.name}';
+    final url = await _workSampleService.addWorkSample(workerId: workerId, imageFile: pickedFile);
+    if (url != null && mounted) {
+      setState(() {
+        if (!_workSamples.contains(url)) {
+          _workSamples.insert(0, url);
+        }
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.success,
+          content: Text('Work sample uploaded!', style: GoogleFonts.inter(fontSize: 13, color: Colors.white)),
+        ),
+      );
+    }
+  }
+
   final List<String> _skills = [
     'House Painting',
     'Wall Tiling',
@@ -185,22 +252,67 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceRaised,
-                          borderRadius: AppRadii.card,
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : 'U',
-                          style: GoogleFonts.sora(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.brand,
-                          ),
+                      GestureDetector(
+                        onTap: _isUploadingPhoto ? null : _handlePickProfilePhoto,
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceRaised,
+                                borderRadius: AppRadii.card,
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              alignment: Alignment.center,
+                              child: _isUploadingPhoto
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
+                                    )
+                                  : (user.photoUrl != null && user.photoUrl!.trim().isNotEmpty
+                                      ? Image.network(
+                                          user.photoUrl!,
+                                          width: 60,
+                                          height: 60,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Text(
+                                            user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : 'U',
+                                            style: GoogleFonts.sora(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.brand,
+                                            ),
+                                          ),
+                                        )
+                                      : Text(
+                                          user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : 'U',
+                                          style: GoogleFonts.sora(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.brand,
+                                          ),
+                                        )),
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: AppColors.brand,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt_rounded,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
@@ -283,10 +395,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             const SizedBox(height: AppSpacing.lg),
 
             // Section 2: Rating Score & Review Breakdown
-            const RatingBreakdown(
-              average: 4.8,
-              total: 24,
-            ),
+            ref.watch(workerRatingSummaryProvider(user.phone.isNotEmpty ? user.phone : 'worker_${user.name}')).when(
+                  data: (summary) {
+                    List<RatingRowData>? rows;
+                    if (summary.totalReviews > 0) {
+                      rows = [5, 4, 3, 2, 1].map((star) {
+                        int cnt = summary.starDistribution[star] ?? 0;
+                        int pct = ((cnt / summary.totalReviews) * 100).round();
+                        return RatingRowData(stars: star, pct: pct);
+                      }).toList();
+                    }
+                    return RatingBreakdown(
+                      average: summary.averageRating,
+                      total: summary.totalReviews,
+                      rows: rows,
+                    );
+                  },
+                  loading: () => const RatingBreakdown(average: 0.0, total: 0),
+                  error: (err, stack) => const RatingBreakdown(average: 0.0, total: 0),
+                ),
             const SizedBox(height: AppSpacing.lg),
 
             // Section 3: Skills & Certifications Card
@@ -380,6 +507,121 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ),
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            // Section 4: Work Samples Gallery Card
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: AppRadii.card,
+                border: Border.all(color: AppColors.border),
+                boxShadow: AppShadows.card,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'WORK SAMPLES & PORTFOLIO GALLERY',
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.inkMuted,
+                            letterSpacing: 1.0,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      GestureDetector(
+                        onTap: _handlePickWorkSample,
+                        child: Text(
+                          '+ Add Sample',
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.brand,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Upload photos of past completed work to build trust with households.',
+                    style: GoogleFonts.inter(
+                      fontSize: 11,
+                      color: AppColors.inkMuted,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  SizedBox(
+                    height: 90,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: _handlePickWorkSample,
+                            child: Container(
+                              width: 90,
+                              height: 90,
+                              margin: const EdgeInsets.only(right: AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceRaised,
+                                borderRadius: AppRadii.control,
+                                border: Border.all(color: AppColors.brand, style: BorderStyle.solid),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.add_a_photo_rounded, size: 22, color: AppColors.brand),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Add Photo',
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.brand,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          ..._workSamples.map((sampleUrl) {
+                            return Container(
+                              width: 90,
+                              height: 90,
+                              margin: const EdgeInsets.only(right: AppSpacing.sm),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceRaised,
+                                borderRadius: AppRadii.control,
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: Image.network(
+                                sampleUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, err, stack) => const Icon(
+                                  Icons.image_not_supported_rounded,
+                                  color: AppColors.inkMuted,
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),

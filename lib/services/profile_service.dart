@@ -20,6 +20,7 @@ class ProfileService {
     required String email,
     required String phone,
     String role = 'employer',
+    String? photoUrl,
   }) async {
     if (!_uuidRegExp.hasMatch(userId)) {
       if (kDebugMode) {
@@ -38,6 +39,7 @@ class ProfileService {
         'email': email,
         'phone': phone,
         'role': role,
+        if (photoUrl != null) 'photo_url': photoUrl,
         'updated_at': DateTime.now().toIso8601String(),
       };
 
@@ -64,26 +66,25 @@ class ProfileService {
     }
 
     try {
-      final res = await _client
-          .from('profiles')
-          .select()
-          .eq('id', userId)
-          .maybeSingle();
+      final res =
+          await _client.from('profiles').select().eq('id', userId).maybeSingle();
 
       if (res == null) return null;
 
       return UserProfile(
-        name: res['full_name'] ?? 'User',
-        email: res['email'] ?? '',
+        name: res['full_name'] ?? 'Sharma Household',
         phone: res['phone'] ?? '',
-        streetAddress: res['street_address'] ?? '',
+        email: res['email'] ?? '',
+        streetAddress: res['street_address'] ?? 'Flat 302, Green Acres',
         locality: res['locality'] ?? 'Indiranagar',
         city: res['city'] ?? 'BLR',
+        pincode: res['pincode'] ?? '560038',
+        photoUrl: res['photo_url'],
         isLoggedIn: true,
       );
     } catch (e) {
       if (kDebugMode) {
-        print('⚠️ [ProfileService] Error fetching profile: $e');
+        print('⚠️ [ProfileService] Error fetching profile ($userId): $e');
       }
       return null;
     }

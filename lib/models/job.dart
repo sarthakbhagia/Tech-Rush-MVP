@@ -13,6 +13,7 @@ class Job {
   final String date;
   final String employerName;
   final String? workerName;
+  final String? imageUrl;
   final bool verified;
   final bool urgent;
 
@@ -31,6 +32,7 @@ class Job {
     required this.date,
     required this.employerName,
     this.workerName,
+    this.imageUrl,
     this.verified = true,
     this.urgent = false,
   });
@@ -51,6 +53,7 @@ class Job {
       date: json['date'] ?? 'Today',
       employerName: json['employer_name'] ?? 'Employer',
       workerName: json['worker_name'],
+      imageUrl: json['image_url'],
       verified: json['verified'] ?? true,
       urgent: json['urgent'] ?? false,
     );
@@ -72,6 +75,7 @@ class Job {
       'date': date,
       'employer_name': employerName,
       if (workerName != null) 'worker_name': workerName,
+      if (imageUrl != null) 'image_url': imageUrl,
       'verified': verified,
       'urgent': urgent,
     };
@@ -92,6 +96,7 @@ class Job {
     String? date,
     String? employerName,
     String? workerName,
+    String? imageUrl,
     bool? verified,
     bool? urgent,
   }) {
@@ -110,6 +115,7 @@ class Job {
       date: date ?? this.date,
       employerName: employerName ?? this.employerName,
       workerName: workerName ?? this.workerName,
+      imageUrl: imageUrl ?? this.imageUrl,
       verified: verified ?? this.verified,
       urgent: urgent ?? this.urgent,
     );

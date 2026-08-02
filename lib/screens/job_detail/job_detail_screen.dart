@@ -13,6 +13,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/trust_badge_row.dart';
 import '../../widgets/provider_card.dart';
 import '../../widgets/sticky_bottom_bar.dart';
+import '../../widgets/rate_worker_bottom_sheet.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -419,21 +420,78 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                                 ),
                               )
                             else if (isSelected)
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.brand,
-                                  borderRadius: AppRadii.pill,
-                                ),
-                                child: Text(
-                                  'ASSIGNED',
-                                  style: GoogleFonts.spaceMono(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.brand,
+                                      borderRadius: AppRadii.pill,
+                                    ),
+                                    child: Text(
+                                      isCompleted ? 'COMPLETED' : 'ASSIGNED',
+                                      style: GoogleFonts.spaceMono(
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 6),
+                                  GestureDetector(
+                                    onTap: () async {
+                                      if (!isCompleted) {
+                                        // Mark job completed in database first
+                                        await ref
+                                            .read(applicationServiceProvider)
+                                            .updateApplicationStatus(
+                                              applicationId: app.id,
+                                              jobId: job.id,
+                                              workerName: app.workerName,
+                                              status: 'assigned',
+                                            );
+                                        // Update job status to completed locally/remotely
+                                        ref.invalidate(jobDetailProvider(job.id));
+                                      }
+                                      if (mounted) {
+                                        openRateWorkerBottomSheet(
+                                          context,
+                                          ref,
+                                          jobId: job.id,
+                                          workerId: app.workerId,
+                                          workerName: app.workerName,
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceRaised,
+                                        borderRadius: AppRadii.pill,
+                                        border: Border.all(color: AppColors.warning),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.star_rounded,
+                                              size: 12, color: AppColors.warning),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            'Rate Worker',
+                                            style: GoogleFonts.spaceMono(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.warning,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                           ],
                         ),

@@ -6,6 +6,7 @@ class UserProfile {
   final String locality;
   final String city;
   final String pincode;
+  final String? photoUrl;
   final bool isLoggedIn;
 
   const UserProfile({
@@ -16,6 +17,7 @@ class UserProfile {
     this.locality = 'Indiranagar',
     this.city = 'BLR',
     this.pincode = '560038',
+    this.photoUrl,
     this.isLoggedIn = true,
   });
 
@@ -44,6 +46,7 @@ class UserProfile {
     String? locality,
     String? city,
     String? pincode,
+    String? photoUrl,
     bool? isLoggedIn,
   }) {
     return UserProfile(
@@ -54,6 +57,7 @@ class UserProfile {
       locality: locality ?? this.locality,
       city: city ?? this.city,
       pincode: pincode ?? this.pincode,
+      photoUrl: photoUrl ?? this.photoUrl,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
     );
   }

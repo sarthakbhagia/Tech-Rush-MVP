@@ -14,6 +14,7 @@ class ProviderCard extends StatelessWidget {
   final int jobsCompleted;
   final int reviewsCount;
   final String phone;
+  final String? photoUrl;
   final bool isVerified;
   final bool isAssigned;
   final VoidCallback? onHire;
@@ -31,6 +32,7 @@ class ProviderCard extends StatelessWidget {
     required this.jobsCompleted,
     this.reviewsCount = 24,
     this.phone = '+91 98765 43210',
+    this.photoUrl,
     this.isVerified = true,
     this.isAssigned = false,
     this.onHire,
@@ -104,7 +106,7 @@ class ProviderCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
+              // Avatar with photoUrl or Initials Fallback
               Container(
                 width: 44,
                 height: 44,
@@ -113,14 +115,29 @@ class ProviderCard extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.border, width: 1.0),
                 ),
+                clipBehavior: Clip.antiAlias,
                 alignment: Alignment.center,
-                child: Text(
-                  initials,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.inkPrimary,
+                child: photoUrl != null && photoUrl!.trim().isNotEmpty
+                    ? Image.network(
+                        photoUrl!,
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Text(
+                          initials,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.inkPrimary,
+                              ),
+                        ),
+                      )
+                    : Text(
+                        initials,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.inkPrimary,
+                            ),
                       ),
-                ),
               ),
               const SizedBox(width: AppSpacing.md),
 

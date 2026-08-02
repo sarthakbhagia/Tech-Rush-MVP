@@ -17,6 +17,26 @@ class Application {
     required this.createdAt,
   });
 
+  Application copyWith({
+    String? id,
+    String? jobId,
+    String? workerId,
+    String? workerName,
+    String? workerPhone,
+    String? status,
+    DateTime? createdAt,
+  }) {
+    return Application(
+      id: id ?? this.id,
+      jobId: jobId ?? this.jobId,
+      workerId: workerId ?? this.workerId,
+      workerName: workerName ?? this.workerName,
+      workerPhone: workerPhone ?? this.workerPhone,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory Application.fromJson(Map<String, dynamic> json) {
     return Application(
       id: json['id']?.toString() ?? '',
