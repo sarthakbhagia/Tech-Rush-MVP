@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
@@ -6,15 +7,17 @@ import '../../core/spacing.dart';
 import '../../widgets/trust_badge_row.dart';
 import '../../widgets/rating_breakdown.dart';
 import '../../widgets/app_bottom_sheet.dart';
+import '../../widgets/address_bottom_sheet.dart';
+import '../../providers/user_provider.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final List<String> _skills = [
     'House Painting',
     'Wall Tiling',
@@ -139,6 +142,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = ref.watch(userProfileProvider);
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
@@ -190,7 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         alignment: Alignment.center,
                         child: Text(
-                          'RK',
+                          user.name.isNotEmpty ? user.name.substring(0, 1).toUpperCase() : 'U',
                           style: GoogleFonts.sora(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
@@ -199,42 +204,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Ramesh Kumar',
-                                style: GoogleFonts.sora(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.inkPrimary,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    user.name,
+                                    style: GoogleFonts.sora(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.inkPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                size: 16,
-                                color: AppColors.success,
-                              ),
-                            ],
-                          ),
-                          Text(
-                            'Skilled Daily-Wage Worker',
-                            style: GoogleFonts.inter(
-                              fontSize: 12,
-                              color: AppColors.inkMuted,
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  size: 16,
+                                  color: AppColors.success,
+                                ),
+                              ],
                             ),
-                          ),
-                          Text(
-                            'Indiranagar, Bengaluru',
-                            style: GoogleFonts.spaceMono(
-                              fontSize: 10,
-                              color: AppColors.inkCaption,
+                            Text(
+                              'Verified Employer / Worker',
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                color: AppColors.inkMuted,
+                              ),
                             ),
-                          ),
-                        ],
+                            GestureDetector(
+                              onTap: () => openAddressBottomSheet(context, ref),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.location_on_outlined,
+                                    size: 12,
+                                    color: AppColors.brand,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Flexible(
+                                    child: Text(
+                                      user.fullAddress,
+                                      style: GoogleFonts.spaceMono(
+                                        fontSize: 10,
+                                        color: AppColors.brand,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Icon(
+                                    Icons.edit_outlined,
+                                    size: 11,
+                                    color: AppColors.brand,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -468,7 +503,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     textColor: AppColors.danger,
                     iconColor: AppColors.danger,
                     isLast: true,
-                    onTap: () => context.go('/auth'),
+                    onTap: () async {
+                      await ref.read(userProfileProvider.notifier).signOut();
+                      if (context.mounted) {
+                        context.go('/auth/sign-in');
+                      }
+                    },
                   ),
                 ],
               ),

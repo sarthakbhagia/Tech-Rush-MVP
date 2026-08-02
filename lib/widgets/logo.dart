@@ -87,39 +87,8 @@ class Logo extends StatelessWidget {
                 letterSpacing: -0.5,
               ),
             ),
-            const SizedBox(width: AppSpacing.xs + 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceRaised,
-                borderRadius: AppRadii.control,
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Text(
-                'OPS v1.0',
-                style: GoogleFonts.spaceMono(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.inkMuted,
-                ),
-              ),
-            ),
           ],
         ),
-
-        // Subtitle
-        if (showSubtitle) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Daily Workforce Dispatch & Operations System',
-            textAlign: TextAlign.center,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: AppColors.inkMuted,
-            ),
-          ),
-        ],
       ],
     );
   }

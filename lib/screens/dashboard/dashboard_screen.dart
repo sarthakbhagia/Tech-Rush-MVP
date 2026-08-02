@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
@@ -7,17 +8,23 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/service_card.dart';
 import '../../widgets/skeleton_service_card.dart';
 import '../../widgets/logo.dart';
+import '../../widgets/category_tile.dart';
+import '../../widgets/filter_bottom_sheet.dart';
+import '../../providers/filter_provider.dart';
+import '../../providers/notification_provider.dart';
+import '../../providers/user_provider.dart';
+import '../../widgets/address_bottom_sheet.dart';
 
 enum DashboardRole { employer, worker }
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   DashboardRole _role = DashboardRole.employer;
   bool _isLoading = true;
 
@@ -109,41 +116,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                           // Center Location / Greeting Text
                           Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.location_on_rounded,
-                                        size: 13,
-                                        color: Colors.white,
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        'Indiranagar, BLR',
-                                        style: GoogleFonts.spaceMono(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.bold,
+                            child: GestureDetector(
+                              onTap: () => openAddressBottomSheet(context, ref),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 10),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.location_on_rounded,
+                                          size: 13,
                                           color: Colors.white,
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                  Text(
-                                    isEmployer
-                                        ? 'Sharma Household'
-                                        : 'Ramesh Kumar (Pro)',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 11,
-                                      color: Colors.white.withValues(alpha: 0.9),
+                                        const SizedBox(width: 3),
+                                        Flexible(
+                                          child: Text(
+                                            ref.watch(userProfileProvider).shortAddress,
+                                            style: GoogleFonts.spaceMono(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 2),
+                                        const Icon(
+                                          Icons.keyboard_arrow_down_rounded,
+                                          size: 14,
+                                          color: Colors.white70,
+                                        ),
+                                      ],
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                                    Text(
+                                      isEmployer
+                                          ? ref.watch(userProfileProvider).name
+                                          : 'Ramesh Kumar (Pro)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11,
+                                        color: Colors.white.withValues(alpha: 0.9),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -176,17 +196,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               const SizedBox(width: 6),
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.notifications_none_rounded,
-                                  size: 18,
-                                  color: Colors.white,
+                              GestureDetector(
+                                onTap: () => context.push('/notifications'),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 34,
+                                      height: 34,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.notifications_none_rounded,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    if (ref.watch(unreadNotificationCountProvider) > 0)
+                                      Positioned(
+                                        top: -2,
+                                        right: -2,
+                                        child: Container(
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.brand,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            minWidth: 16,
+                                            minHeight: 16,
+                                          ),
+                                          child: Text(
+                                            '${ref.watch(unreadNotificationCountProvider)}',
+                                            style: GoogleFonts.spaceMono(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             ],
@@ -220,53 +273,84 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       const SizedBox(height: AppSpacing.lg),
 
                       // Floating White Search Bar
-                      Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: AppRadii.pill,
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x1F000000),
-                              blurRadius: 12.0,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 14),
-                            const Icon(
-                              Icons.search_rounded,
-                              size: 20,
-                              color: AppColors.brand,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                isEmployer
-                                    ? 'Search "House Painting", "Plumbing"...'
-                                    : 'Search jobs near Indiranagar...',
-                                style: GoogleFonts.inter(
-                                  fontSize: 13,
-                                  color: AppColors.inkMuted,
+                      GestureDetector(
+                        onTap: () => context.push('/search'),
+                        child: Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: AppRadii.pill,
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x1F000000),
+                                blurRadius: 12.0,
+                                offset: Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(width: 14),
+                              const Icon(
+                                Icons.search_rounded,
+                                size: 20,
+                                color: AppColors.brand,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  isEmployer
+                                      ? 'Search "House Painting", "Plumbing"...'
+                                      : 'Search jobs near Indiranagar...',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13,
+                                    color: AppColors.inkMuted,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: AppColors.surfaceRaised,
-                                shape: BoxShape.circle,
+                              GestureDetector(
+                                onTap: () => openFilterBottomSheet(context, ref),
+                                child: Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      margin: const EdgeInsets.only(right: 6),
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: ref.watch(jobFilterProvider).isActive
+                                            ? AppColors.brandSubtle
+                                            : AppColors.surfaceRaised,
+                                        shape: BoxShape.circle,
+                                        border: ref.watch(jobFilterProvider).isActive
+                                            ? Border.all(color: AppColors.brand)
+                                            : null,
+                                      ),
+                                      child: Icon(
+                                        Icons.tune_rounded,
+                                        size: 16,
+                                        color: ref.watch(jobFilterProvider).isActive
+                                            ? AppColors.brand
+                                            : AppColors.inkPrimary,
+                                      ),
+                                    ),
+                                    if (ref.watch(jobFilterProvider).isActive)
+                                      Positioned(
+                                        top: -2,
+                                        right: 4,
+                                        child: Container(
+                                          width: 9,
+                                          height: 9,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.brand,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.tune_rounded,
-                                size: 16,
-                                color: AppColors.inkPrimary,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: AppSpacing.lg),
@@ -371,42 +455,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisCount: 3,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: AppSpacing.md,
-                        crossAxisSpacing: AppSpacing.md,
+                        clipBehavior: Clip.none,
+                        padding: const EdgeInsets.only(top: 8),
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
                         childAspectRatio: 0.95,
-                        children: const [
-                          _CategoryTile(
+                        children: [
+                          CategoryTile(
                             icon: Icons.format_paint_rounded,
                             label: 'Painting',
                             badgeText: 'HIGH DEMAND',
                             badgeColor: AppColors.brand,
-                            badgeBg: Color(0xFFFFF7ED),
+                            badgeBg: const Color(0xFFFFF7ED),
+                            onTap: () => context.push('/listings?category=Painting'),
                           ),
-                          _CategoryTile(
+                          CategoryTile(
                             icon: Icons.cleaning_services_rounded,
                             label: 'Cleaning',
                             badgeText: 'POPULAR',
-                            badgeColor: Color(0xFF2563EB),
-                            badgeBg: Color(0xFFEFF6FF),
+                            badgeColor: const Color(0xFF2563EB),
+                            badgeBg: const Color(0xFFEFF6FF),
+                            onTap: () => context.push('/listings?category=Cleaning'),
                           ),
-                          _CategoryTile(
+                          CategoryTile(
                             icon: Icons.plumbing_rounded,
                             label: 'Plumbing',
                             badgeText: 'URGENT',
                             badgeColor: AppColors.danger,
-                            badgeBg: Color(0xFFFEF2F2),
+                            badgeBg: const Color(0xFFFEF2F2),
+                            onTap: () => context.push('/listings?category=Plumbing'),
                           ),
-                          _CategoryTile(
+                          CategoryTile(
                             icon: Icons.soup_kitchen_rounded,
                             label: 'Cooking',
+                            onTap: () => context.push('/listings?category=Cooking'),
                           ),
-                          _CategoryTile(
+                          CategoryTile(
                             icon: Icons.grass_rounded,
                             label: 'Gardening',
+                            onTap: () => context.push('/listings?category=Gardening'),
                           ),
-                          _CategoryTile(
+                          CategoryTile(
                             icon: Icons.electric_bolt_rounded,
                             label: 'Electrical',
+                            onTap: () => context.push('/listings?category=Electrical'),
                           ),
                         ],
                       ),
@@ -633,99 +725,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-class _CategoryTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? badgeText;
-  final Color? badgeColor;
-  final Color? badgeBg;
 
-  const _CategoryTile({
-    required this.icon,
-    required this.label,
-    this.badgeText,
-    this.badgeColor,
-    this.badgeBg,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.push('/listings'),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: AppRadii.card,
-              boxShadow: AppShadows.card,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: const BoxDecoration(
-                    color: AppColors.surfaceRaised,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    icon,
-                    size: 22,
-                    color: AppColors.brand,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  style: GoogleFonts.sora(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.inkPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (badgeText != null)
-            Positioned(
-              top: -5,
-              right: -2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 5,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeBg ?? AppColors.brandSubtle,
-                  borderRadius: AppRadii.pill,
-                  border: Border.all(
-                    color: badgeColor ?? AppColors.brand,
-                    width: 1.0,
-                  ),
-                ),
-                child: Text(
-                  badgeText!,
-                  style: GoogleFonts.spaceMono(
-                    fontSize: 7.5,
-                    fontWeight: FontWeight.bold,
-                    color: badgeColor ?? AppColors.brand,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 class _StatTile extends StatelessWidget {
   final IconData icon;

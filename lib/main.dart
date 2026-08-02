@@ -25,7 +25,7 @@ class KaamSetuApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
-      title: 'KaamSetu OPS',
+      title: 'KaamSetu',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       routerConfig: router,

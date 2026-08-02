@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/splash/splash_screen.dart';
-import '../screens/auth/auth_screen.dart';
+import '../screens/auth/sign_in_screen.dart';
+import '../screens/auth/sign_up_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/job_listing/job_listing_screen.dart';
 import '../screens/job_detail/job_detail_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/search/search_screen.dart';
+import '../screens/notifications/notifications_screen.dart';
 import '../screens/demo_widgets_screen.dart';
 import '../widgets/app_bottom_nav.dart';
 
@@ -26,8 +29,31 @@ final GoRouter appRouter = GoRouter(
     ),
     GoRoute(
       path: '/auth',
+      redirect: (context, state) => '/auth/sign-in',
+    ),
+    GoRoute(
+      path: '/auth/sign-in',
       builder: (BuildContext context, GoRouterState state) {
-        return const AuthScreen();
+        return const SignInScreen();
+      },
+    ),
+    GoRoute(
+      path: '/auth/sign-up',
+      builder: (BuildContext context, GoRouterState state) {
+        return const SignUpScreen();
+      },
+    ),
+    GoRoute(
+      path: '/search',
+      builder: (BuildContext context, GoRouterState state) {
+        final initialQuery = state.uri.queryParameters['q'] ?? '';
+        return SearchScreen(initialQuery: initialQuery);
+      },
+    ),
+    GoRoute(
+      path: '/notifications',
+      builder: (BuildContext context, GoRouterState state) {
+        return const NotificationsScreen();
       },
     ),
     GoRoute(
@@ -59,7 +85,8 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: '/listings',
           builder: (BuildContext context, GoRouterState state) {
-            return const JobListingScreen();
+            final category = state.uri.queryParameters['category'] ?? 'All';
+            return JobListingScreen(initialCategory: category);
           },
         ),
         GoRoute(

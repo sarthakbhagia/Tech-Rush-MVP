@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../core/spacing.dart';
 import '../../widgets/logo.dart';
+import '../../widgets/category_tile.dart';
 
 enum GuestRole { employer, worker }
 
@@ -22,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   void _navigateToAuth() {
-    context.push('/auth');
+    context.push('/auth/sign-in');
   }
 
   @override
@@ -80,31 +81,17 @@ class _SplashScreenState extends State<SplashScreen> {
                         // Left Logo
                         const Logo(variant: LogoVariant.header),
 
-                        // Center App Tagline
+                        // Center App Title
                         Expanded(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'KaamSetu OPS',
-                                  style: GoogleFonts.sora(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                Text(
-                                  'Daily Workforce Dispatch',
-                                  style: GoogleFonts.inter(
-                                    fontSize: 11,
-                                    color: Colors.white.withValues(alpha: 0.9),
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
+                            child: Text(
+                              'KaamSetu',
+                              style: GoogleFonts.sora(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
@@ -403,11 +390,13 @@ class _SplashScreenState extends State<SplashScreen> {
                       crossAxisCount: 3,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: AppSpacing.md,
-                      crossAxisSpacing: AppSpacing.md,
+                      clipBehavior: Clip.none,
+                      padding: const EdgeInsets.only(top: 8),
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
                       childAspectRatio: 0.95,
                       children: [
-                        _CategoryTile(
+                        CategoryTile(
                           icon: Icons.format_paint_rounded,
                           label: 'Painting',
                           badgeText: 'HIGH DEMAND',
@@ -415,7 +404,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           badgeBg: const Color(0xFFFFF7ED),
                           onTap: _navigateToAuth,
                         ),
-                        _CategoryTile(
+                        CategoryTile(
                           icon: Icons.cleaning_services_rounded,
                           label: 'Cleaning',
                           badgeText: 'POPULAR',
@@ -423,7 +412,7 @@ class _SplashScreenState extends State<SplashScreen> {
                           badgeBg: const Color(0xFFEFF6FF),
                           onTap: _navigateToAuth,
                         ),
-                        _CategoryTile(
+                        CategoryTile(
                           icon: Icons.plumbing_rounded,
                           label: 'Plumbing',
                           badgeText: 'URGENT',
@@ -431,17 +420,17 @@ class _SplashScreenState extends State<SplashScreen> {
                           badgeBg: const Color(0xFFFEF2F2),
                           onTap: _navigateToAuth,
                         ),
-                        _CategoryTile(
+                        CategoryTile(
                           icon: Icons.soup_kitchen_rounded,
                           label: 'Cooking',
                           onTap: _navigateToAuth,
                         ),
-                        _CategoryTile(
+                        CategoryTile(
                           icon: Icons.grass_rounded,
                           label: 'Gardening',
                           onTap: _navigateToAuth,
                         ),
-                        _CategoryTile(
+                        CategoryTile(
                           icon: Icons.electric_bolt_rounded,
                           label: 'Electrical',
                           onTap: _navigateToAuth,
@@ -576,98 +565,4 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 }
 
-class _CategoryTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? badgeText;
-  final Color? badgeColor;
-  final Color? badgeBg;
-  final VoidCallback onTap;
 
-  const _CategoryTile({
-    required this.icon,
-    required this.label,
-    this.badgeText,
-    this.badgeColor,
-    this.badgeBg,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: AppRadii.card,
-              boxShadow: AppShadows.card,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: const BoxDecoration(
-                    color: AppColors.surfaceRaised,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    icon,
-                    size: 22,
-                    color: AppColors.brand,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  style: GoogleFonts.sora(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.inkPrimary,
-                  ),
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          if (badgeText != null)
-            Positioned(
-              top: -5,
-              right: -2,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 5,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: badgeBg ?? AppColors.brandSubtle,
-                  borderRadius: AppRadii.pill,
-                  border: Border.all(
-                    color: badgeColor ?? AppColors.brand,
-                    width: 1.0,
-                  ),
-                ),
-                child: Text(
-                  badgeText!,
-                  style: GoogleFonts.spaceMono(
-                    fontSize: 7.5,
-                    fontWeight: FontWeight.bold,
-                    color: badgeColor ?? AppColors.brand,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}

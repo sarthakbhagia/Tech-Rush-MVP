@@ -1,25 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../core/spacing.dart';
 import '../../models/job.dart';
 import '../../widgets/service_card.dart';
 import '../../widgets/skeleton_service_card.dart';
 import '../../widgets/status_chip.dart';
-import '../../widgets/app_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/filter_bottom_sheet.dart';
+import '../../providers/filter_provider.dart';
 
-class JobListingScreen extends StatefulWidget {
-  const JobListingScreen({super.key});
+class JobListingScreen extends ConsumerStatefulWidget {
+  final String initialCategory;
+  const JobListingScreen({super.key, this.initialCategory = 'All'});
 
   @override
-  State<JobListingScreen> createState() => _JobListingScreenState();
+  ConsumerState<JobListingScreen> createState() => _JobListingScreenState();
 }
 
-class _JobListingScreenState extends State<JobListingScreen> {
+class _JobListingScreenState extends ConsumerState<JobListingScreen> {
   String _searchQuery = '';
-  String _selectedCategory = 'All';
+  late String _selectedCategory;
   String _selectedStatusTab = 'ALL';
   bool _isLoading = true;
 
@@ -38,6 +41,7 @@ class _JobListingScreenState extends State<JobListingScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedCategory = widget.initialCategory;
     _simulateLoading();
   }
 
@@ -66,60 +70,36 @@ class _JobListingScreenState extends State<JobListingScreen> {
     _simulateLoading();
   }
 
-  void _openFilterBottomSheet() {
-    showAppBottomSheet(
-      context: context,
-      title: 'Filter Dispatches by Category',
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: _categories.map((cat) {
-          final isSelected = _selectedCategory == cat;
-          return Container(
-            margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.surfaceRaised : AppColors.surface,
-              borderRadius: AppRadii.control,
-              border: Border.all(
-                color: isSelected ? AppColors.brand : AppColors.border,
-              ),
-            ),
-            child: ListTile(
-              title: Text(
-                cat,
-                style: GoogleFonts.spaceMono(
-                  fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? AppColors.brand : AppColors.inkPrimary,
-                ),
-              ),
-              trailing: isSelected
-                  ? const Icon(Icons.check_rounded,
-                      color: AppColors.brand, size: 18)
-                  : null,
-              onTap: () {
-                setState(() => _selectedCategory = cat);
-                Navigator.of(context).pop();
-                _simulateLoading();
-              },
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
+
 
   List<Job> get _filteredJobs {
-    return mockJobs.where((job) {
+    final filterState = ref.watch(jobFilterProvider);
+
+    var list = mockJobs.where((job) {
+      // 1. Status Tab filter
       if (_selectedStatusTab != 'ALL') {
         if (job.status.toUpperCase() != _selectedStatusTab) {
           return false;
         }
       }
-      if (_selectedCategory != 'All') {
+
+      // 2. Category Chip / BottomSheet Category filter
+      if (filterState.categories.isNotEmpty) {
+        if (!filterState.categories.contains(job.category)) {
+          return false;
+        }
+      } else if (_selectedCategory != 'All') {
         if (job.category.toLowerCase() != _selectedCategory.toLowerCase()) {
           return false;
         }
       }
+
+      // 3. Price Range Filter
+      if (job.wage < filterState.minPrice || job.wage > filterState.maxPrice) {
+        return false;
+      }
+
+      // 4. Search Query Filter
       if (_searchQuery.isNotEmpty) {
         final q = _searchQuery.toLowerCase();
         final matchTitle = job.title.toLowerCase().contains(q);
@@ -129,13 +109,36 @@ class _JobListingScreenState extends State<JobListingScreen> {
           return false;
         }
       }
+
       return true;
     }).toList();
+
+    // 5. Sorting
+    switch (filterState.sortBy) {
+      case 'price_low':
+        list.sort((a, b) => a.wage.compareTo(b.wage));
+        break;
+      case 'price_high':
+        list.sort((a, b) => b.wage.compareTo(a.wage));
+        break;
+      case 'rating':
+        list.sort((a, b) => b.rating.compareTo(a.rating));
+        break;
+      case 'urgency':
+        list.sort((a, b) => (b.urgent ? 1 : 0).compareTo(a.urgent ? 1 : 0));
+        break;
+      case 'most_recent':
+      default:
+        break;
+    }
+
+    return list;
   }
 
   @override
   Widget build(BuildContext context) {
     final filtered = _filteredJobs;
+    final filterState = ref.watch(jobFilterProvider);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -147,7 +150,9 @@ class _JobListingScreenState extends State<JobListingScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Job Dispatch Ledger',
+          _selectedCategory == 'All'
+              ? 'All Job Listings'
+              : '$_selectedCategory Jobs',
           style: GoogleFonts.sora(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -219,31 +224,50 @@ class _JobListingScreenState extends State<JobListingScreen> {
                     const SizedBox(width: AppSpacing.sm),
 
                     Material(
-                      color: AppColors.surfaceRaised,
+                      color: filterState.isActive ? AppColors.brandSubtle : AppColors.surfaceRaised,
                       borderRadius: AppRadii.control,
                       child: InkWell(
-                        onTap: _openFilterBottomSheet,
+                        onTap: () => openFilterBottomSheet(context, ref),
                         borderRadius: AppRadii.control,
                         child: Container(
                           height: 44,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(
+                              color: filterState.isActive ? AppColors.brand : AppColors.border,
+                            ),
                             borderRadius: AppRadii.control,
                           ),
-                          child: const Row(
+                          child: Row(
                             children: [
                               Icon(
                                 Icons.tune_rounded,
                                 size: 16,
-                                color: AppColors.brand,
+                                color: filterState.isActive ? AppColors.brand : AppColors.inkPrimary,
                               ),
-                              SizedBox(width: 4),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                size: 16,
-                                color: AppColors.inkMuted,
-                              ),
+                              const SizedBox(width: 4),
+                              if (filterState.isActive)
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.brand,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Text(
+                                    '${filterState.activeCount}',
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                )
+                              else
+                                const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 16,
+                                  color: AppColors.inkMuted,
+                                ),
                             ],
                           ),
                         ),
@@ -251,6 +275,44 @@ class _JobListingScreenState extends State<JobListingScreen> {
                     ),
                   ],
                 ),
+                if (filterState.isActive) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.brandSubtle,
+                      borderRadius: AppRadii.control,
+                      border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${filterState.activeCount} filter${filterState.activeCount > 1 ? "s" : ""} applied',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brand,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () {
+                            ref.read(jobFilterProvider.notifier).reset();
+                          },
+                          child: Text(
+                            'Clear All',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.brand,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
 
                 SingleChildScrollView(
