@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,7 +14,9 @@ import '../../widgets/filter_bottom_sheet.dart';
 import '../../providers/filter_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/job_provider.dart';
 import '../../widgets/address_bottom_sheet.dart';
+import '../../widgets/post_job_bottom_sheet.dart';
 
 enum DashboardRole { employer, worker }
 
@@ -79,7 +82,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 // -------------------------------------------------------------
                 Container(
                   padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + AppSpacing.md,
+                    top: math.max(MediaQuery.viewPaddingOf(context).top, 44.0) + AppSpacing.md,
                     left: AppSpacing.lg,
                     right: AppSpacing.lg,
                     bottom: AppSpacing.xl,
@@ -131,7 +134,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                           color: Colors.white,
                                         ),
                                         const SizedBox(width: 3),
-                                        Flexible(
+                                        Expanded(
                                           child: Text(
                                             ref.watch(userProfileProvider).shortAddress,
                                             style: GoogleFonts.spaceMono(
@@ -306,6 +309,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     fontSize: 13,
                                     color: AppColors.inkMuted,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                               GestureDetector(
@@ -428,24 +433,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            isEmployer
-                                ? 'POST A NEW JOB BY CATEGORY'
-                                : 'AVAILABLE WORK CATEGORIES',
-                            style: GoogleFonts.spaceMono(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.inkPrimary,
-                              letterSpacing: 0.8,
+                          Expanded(
+                            child: Text(
+                              isEmployer
+                                  ? 'POST A NEW JOB BY CATEGORY'
+                                  : 'AVAILABLE WORK CATEGORIES',
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.inkPrimary,
+                                letterSpacing: 0.8,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Text(
-                            '6 Categories',
-                            style: GoogleFonts.spaceMono(
-                              fontSize: 10,
-                              color: AppColors.inkMuted,
+                          const SizedBox(width: AppSpacing.xs),
+                          if (isEmployer)
+                            GestureDetector(
+                              onTap: () => openPostJobBottomSheet(context, ref),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: AppColors.brandSubtle,
+                                  borderRadius: AppRadii.pill,
+                                  border: Border.all(color: AppColors.brand),
+                                ),
+                                child: Text(
+                                  '+ Post Job',
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.brand,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else
+                            Text(
+                              '6 Categories',
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 10,
+                                color: AppColors.inkMuted,
+                              ),
                             ),
-                          ),
                         ],
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -467,7 +498,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             badgeText: 'HIGH DEMAND',
                             badgeColor: AppColors.brand,
                             badgeBg: const Color(0xFFFFF7ED),
-                            onTap: () => context.push('/listings?category=Painting'),
+                            onTap: () => isEmployer
+                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Painting')
+                                : context.push('/listings?category=Painting'),
                           ),
                           CategoryTile(
                             icon: Icons.cleaning_services_rounded,
@@ -475,7 +508,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             badgeText: 'POPULAR',
                             badgeColor: const Color(0xFF2563EB),
                             badgeBg: const Color(0xFFEFF6FF),
-                            onTap: () => context.push('/listings?category=Cleaning'),
+                            onTap: () => isEmployer
+                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Cleaning')
+                                : context.push('/listings?category=Cleaning'),
                           ),
                           CategoryTile(
                             icon: Icons.plumbing_rounded,
@@ -483,22 +518,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             badgeText: 'URGENT',
                             badgeColor: AppColors.danger,
                             badgeBg: const Color(0xFFFEF2F2),
-                            onTap: () => context.push('/listings?category=Plumbing'),
+                            onTap: () => isEmployer
+                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Plumbing')
+                                : context.push('/listings?category=Plumbing'),
                           ),
                           CategoryTile(
                             icon: Icons.soup_kitchen_rounded,
                             label: 'Cooking',
-                            onTap: () => context.push('/listings?category=Cooking'),
+                            onTap: () => isEmployer
+                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Cooking')
+                                : context.push('/listings?category=Cooking'),
                           ),
                           CategoryTile(
                             icon: Icons.grass_rounded,
                             label: 'Gardening',
-                            onTap: () => context.push('/listings?category=Gardening'),
+                            onTap: () => isEmployer
+                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Gardening')
+                                : context.push('/listings?category=Gardening'),
                           ),
                           CategoryTile(
                             icon: Icons.electric_bolt_rounded,
                             label: 'Electrical',
-                            onTap: () => context.push('/listings?category=Electrical'),
+                            onTap: () => isEmployer
+                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Electrical')
+                                : context.push('/listings?category=Electrical'),
                           ),
                         ],
                       ),
@@ -520,20 +563,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  isEmployer
-                                      ? 'Active Dispatch Operations'
-                                      : 'Daily Availability Status',
-                                  style: GoogleFonts.sora(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.inkPrimary,
+                                Expanded(
+                                  child: Text(
+                                    isEmployer
+                                        ? 'Active Dispatch Operations'
+                                        : 'Daily Availability Status',
+                                    style: GoogleFonts.sora(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.inkPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
+                                const SizedBox(width: AppSpacing.sm),
                                 StatusChip(
                                   status: StatusChipType.open,
                                   labelOverride: isEmployer
-                                      ? '2 POSTINGS'
+                                      ? 'POSTINGS ACTIVE'
                                       : 'AVAILABLE',
                                 ),
                               ],
@@ -541,7 +589,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             const SizedBox(height: AppSpacing.sm),
                             Text(
                               isEmployer
-                                  ? '2 open postings receiving applicant bids. Next dispatch scheduled for 09:00 AM tomorrow.'
+                                  ? 'Open postings receiving applicant bids. Next dispatch scheduled for 09:00 AM tomorrow.'
                                   : 'Your profile is active in local dispatch pool. Employers nearby can view your skill certifications and call directly.',
                               style: GoogleFonts.inter(
                                 fontSize: 12,
@@ -652,17 +700,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            isEmployer
-                                ? 'RECENT DISPATCH LEDGER'
-                                : 'RECOMMENDED JOBS NEARBY',
-                            style: GoogleFonts.spaceMono(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.inkMuted,
-                              letterSpacing: 1.0,
+                          Expanded(
+                            child: Text(
+                              isEmployer
+                                  ? 'RECENT DISPATCH LEDGER'
+                                  : 'RECOMMENDED JOBS NEARBY',
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.inkMuted,
+                                letterSpacing: 1.0,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: AppSpacing.xs),
                           GestureDetector(
                             onTap: () => context.push('/listings'),
                             child: Text(
@@ -678,40 +731,45 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(height: AppSpacing.md),
 
-                      if (_isLoading)
-                        const SkeletonList(count: 3)
-                      else ...[
-                        ServiceCard(
-                          title: 'Full House Painting (Interior Walls)',
-                          category: 'Painting',
-                          rating: 4.8,
-                          reviewCount: 24,
-                          price: 1500,
-                          originalPrice: 1800,
-                          verified: true,
-                          onSelect: () => context.push('/job/job-1'),
-                        ),
-                        ServiceCard(
-                          title: 'Deep Kitchen & Chimney Cleaning',
-                          category: 'Cleaning',
-                          rating: 4.9,
-                          reviewCount: 42,
-                          price: 900,
-                          originalPrice: 1200,
-                          verified: true,
-                          onSelect: () => context.push('/job/job-2'),
-                        ),
-                        ServiceCard(
-                          title: 'Emergency Bathroom Leak Repair',
-                          category: 'Plumbing',
-                          rating: 4.7,
-                          reviewCount: 18,
-                          price: 750,
-                          originalPrice: 850,
-                          verified: true,
-                          onSelect: () => context.push('/job/job-3'),
-                        ),
-                      ],
+                      ref.watch(jobsByCategoryProvider('All')).when(
+                            data: (jobs) {
+                              if (jobs.isEmpty) {
+                                return Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(AppSpacing.lg),
+                                    child: Text(
+                                      'No jobs posted yet. Tap "+ Post Job" to publish a new dispatch!',
+                                      style: GoogleFonts.inter(
+                                          fontSize: 12, color: AppColors.inkMuted),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return Column(
+                                children: jobs.take(4).map((job) {
+                                  return ServiceCard(
+                                    title: job.title,
+                                    category: job.category,
+                                    rating: job.rating,
+                                    reviewCount: job.reviewCount,
+                                    price: job.wage,
+                                    originalPrice: job.originalWage,
+                                    verified: job.verified,
+                                    onSelect: () => context.push('/job/${job.id}'),
+                                  );
+                                }).toList(),
+                              );
+                            },
+                            loading: () => const SkeletonList(count: 3),
+                            error: (err, stack) => Center(
+                              child: Text(
+                                'Error loading jobs: $err',
+                                style: GoogleFonts.inter(
+                                    fontSize: 12, color: AppColors.danger),
+                              ),
+                            ),
+                          ),
                       const SizedBox(height: AppSpacing.xxl),
                     ],
                   ),

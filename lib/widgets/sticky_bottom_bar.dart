@@ -61,32 +61,38 @@ class StickyBottomBar extends StatelessWidget {
         children: [
           // Optional Left Price & Label Column
           if (price != null) ...[
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (label != null && label!.isNotEmpty)
-                  Text(
-                    label!.toUpperCase(),
-                    style: GoogleFonts.spaceMono(
-                      fontSize: 10.0,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.inkMuted,
-                      letterSpacing: 0.5,
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (label != null && label!.isNotEmpty)
+                    Text(
+                      label!.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 10.0,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.inkMuted,
+                        letterSpacing: 0.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formattedPrice!,
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 20.0,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.brand,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                const SizedBox(height: 2),
-                Text(
-                  formattedPrice!,
-                  style: GoogleFonts.spaceMono(
-                    fontSize: 20.0,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.brand,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(width: AppSpacing.lg),
+            const SizedBox(width: AppSpacing.md),
           ],
 
           // Right Primary CTA Button

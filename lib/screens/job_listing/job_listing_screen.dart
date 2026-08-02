@@ -11,6 +11,7 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/filter_bottom_sheet.dart';
 import '../../providers/filter_provider.dart';
+import '../../providers/job_provider.dart';
 
 class JobListingScreen extends ConsumerStatefulWidget {
   final String initialCategory;
@@ -24,7 +25,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
   String _searchQuery = '';
   late String _selectedCategory;
   String _selectedStatusTab = 'ALL';
-  bool _isLoading = true;
+  bool _isLoading = false;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -42,22 +43,12 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
   void initState() {
     super.initState();
     _selectedCategory = widget.initialCategory;
-    _simulateLoading();
   }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
-  }
-
-  void _simulateLoading() {
-    setState(() => _isLoading = true);
-    Future.delayed(const Duration(milliseconds: 650), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    });
   }
 
   void _clearFilters() {
@@ -67,15 +58,13 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
       _selectedStatusTab = 'ALL';
       _searchController.clear();
     });
-    _simulateLoading();
+    ref.invalidate(jobsByCategoryProvider);
   }
 
-
-
-  List<Job> get _filteredJobs {
+  List<Job> _filterJobs(List<Job> rawJobs) {
     final filterState = ref.watch(jobFilterProvider);
 
-    var list = mockJobs.where((job) {
+    var list = rawJobs.where((job) {
       // 1. Status Tab filter
       if (_selectedStatusTab != 'ALL') {
         if (job.status.toUpperCase() != _selectedStatusTab) {
@@ -137,7 +126,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredJobs;
+    final asyncJobs = ref.watch(jobsByCategoryProvider(_selectedCategory));
     final filterState = ref.watch(jobFilterProvider);
 
     return Scaffold(
@@ -287,14 +276,19 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '${filterState.activeCount} filter${filterState.activeCount > 1 ? "s" : ""} applied',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.brand,
+                        Expanded(
+                          child: Text(
+                            '${filterState.activeCount} filter${filterState.activeCount > 1 ? "s" : ""} applied',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.brand,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: AppSpacing.xs),
                         GestureDetector(
                           onTap: () {
                             ref.read(jobFilterProvider.notifier).reset();
@@ -340,7 +334,6 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                           onSelected: (selected) {
                             if (selected) {
                               setState(() => _selectedCategory = cat);
-                              _simulateLoading();
                             }
                           },
                           selectedColor: AppColors.brandSubtle,
@@ -384,53 +377,66 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
           ),
 
           Expanded(
-            child: _isLoading
-                ? const SingleChildScrollView(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: SkeletonList(count: 3),
-                  )
-                : filtered.isEmpty
-                    ? Center(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          child: EmptyState(
-                            icon: Icons.search_off_rounded,
-                            title: 'No Job Dispatches Found',
-                            description:
-                                'No listings match your search term or category filters. Clear filters to see available daily jobs.',
-                            actionLabel: 'Clear All Filters',
-                            onAction: _clearFilters,
-                          ),
-                        ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () async {
-                          _simulateLoading();
-                          await Future.delayed(
-                              const Duration(milliseconds: 650));
-                        },
-                        backgroundColor: AppColors.surface,
-                        color: AppColors.brand,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(AppSpacing.lg),
-                          itemCount: filtered.length,
-                          itemBuilder: (context, index) {
-                            final job = filtered[index];
-                            return ServiceCard(
-                              title: job.title,
-                              category: job.category,
-                              rating: job.rating,
-                              reviewCount: job.reviewCount,
-                              price: job.wage,
-                              originalPrice: job.originalWage,
-                              verified: job.verified,
-                              onSelect: () {
-                                context.push('/job/${job.id}');
-                              },
-                            );
-                          },
-                        ),
+            child: asyncJobs.when(
+              data: (rawJobs) {
+                final filtered = _filterJobs(rawJobs);
+                if (filtered.isEmpty) {
+                  return Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: EmptyState(
+                        icon: Icons.search_off_rounded,
+                        title: 'No Job Dispatches Found',
+                        description:
+                            'No listings match your search term or category filters. Clear filters to see available daily jobs.',
+                        actionLabel: 'Clear All Filters',
+                        onAction: _clearFilters,
                       ),
+                    ),
+                  );
+                }
+
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(jobsByCategoryProvider);
+                  },
+                  backgroundColor: AppColors.surface,
+                  color: AppColors.brand,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final job = filtered[index];
+                      return ServiceCard(
+                        title: job.title,
+                        category: job.category,
+                        rating: job.rating,
+                        reviewCount: job.reviewCount,
+                        price: job.wage,
+                        originalPrice: job.originalWage,
+                        verified: job.verified,
+                        onSelect: () {
+                          context.push('/job/${job.id}');
+                        },
+                      );
+                    },
+                  ),
+                );
+              },
+              loading: () => const SingleChildScrollView(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: SkeletonList(count: 3),
+              ),
+              error: (err, stack) => Center(
+                child: EmptyState(
+                  icon: Icons.error_outline_rounded,
+                  title: 'Unable to Load Jobs',
+                  description: 'Error: $err',
+                  actionLabel: 'Retry',
+                  onAction: () => ref.invalidate(jobsByCategoryProvider),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -445,7 +451,6 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
       child: GestureDetector(
         onTap: () {
           setState(() => _selectedStatusTab = tabKey);
-          _simulateLoading();
         },
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 6),

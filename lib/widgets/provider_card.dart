@@ -178,12 +178,16 @@ class ProviderCard extends StatelessWidget {
                               ),
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          '($jobsCompleted jobs completed)',
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontSize: 11.0,
-                                color: AppColors.inkMuted,
-                              ),
+                        Flexible(
+                          child: Text(
+                            '($jobsCompleted jobs completed)',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  fontSize: 11.0,
+                                  color: AppColors.inkMuted,
+                                ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ],
                     ),

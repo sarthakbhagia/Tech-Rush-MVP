@@ -1,5 +1,6 @@
 class Job {
   final String id;
+  final String? employerId;
   final String title;
   final String category;
   final String description;
@@ -17,6 +18,7 @@ class Job {
 
   const Job({
     required this.id,
+    this.employerId,
     required this.title,
     required this.category,
     required this.description,
@@ -32,6 +34,86 @@ class Job {
     this.verified = true,
     this.urgent = false,
   });
+
+  factory Job.fromJson(Map<String, dynamic> json) {
+    return Job(
+      id: json['id']?.toString() ?? '',
+      employerId: json['employer_id']?.toString(),
+      title: json['title'] ?? '',
+      category: json['category'] ?? 'General',
+      description: json['description'] ?? '',
+      wage: (json['price'] as num?)?.toDouble() ?? 0.0,
+      originalWage: (json['original_price'] as num?)?.toDouble(),
+      status: json['status'] ?? 'open',
+      rating: (json['rating'] as num?)?.toDouble() ?? 5.0,
+      reviewCount: (json['review_count'] as num?)?.toInt() ?? 0,
+      location: json['location'] ?? 'Indiranagar',
+      date: json['date'] ?? 'Today',
+      employerName: json['employer_name'] ?? 'Employer',
+      workerName: json['worker_name'],
+      verified: json['verified'] ?? true,
+      urgent: json['urgent'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      if (id.isNotEmpty && !id.startsWith('job-')) 'id': id,
+      if (employerId != null) 'employer_id': employerId,
+      'title': title,
+      'category': category,
+      'description': description,
+      'price': wage,
+      if (originalWage != null) 'original_price': originalWage,
+      'status': status,
+      'rating': rating,
+      'review_count': reviewCount,
+      'location': location,
+      'date': date,
+      'employer_name': employerName,
+      if (workerName != null) 'worker_name': workerName,
+      'verified': verified,
+      'urgent': urgent,
+    };
+  }
+
+  Job copyWith({
+    String? id,
+    String? employerId,
+    String? title,
+    String? category,
+    String? description,
+    double? wage,
+    double? originalWage,
+    String? status,
+    double? rating,
+    int? reviewCount,
+    String? location,
+    String? date,
+    String? employerName,
+    String? workerName,
+    bool? verified,
+    bool? urgent,
+  }) {
+    return Job(
+      id: id ?? this.id,
+      employerId: employerId ?? this.employerId,
+      title: title ?? this.title,
+      category: category ?? this.category,
+      description: description ?? this.description,
+      wage: wage ?? this.wage,
+      originalWage: originalWage ?? this.originalWage,
+      status: status ?? this.status,
+      rating: rating ?? this.rating,
+      reviewCount: reviewCount ?? this.reviewCount,
+      location: location ?? this.location,
+      date: date ?? this.date,
+      employerName: employerName ?? this.employerName,
+      workerName: workerName ?? this.workerName,
+      verified: verified ?? this.verified,
+      urgent: urgent ?? this.urgent,
+    );
+  }
 }
 
 final List<Job> mockJobs = [

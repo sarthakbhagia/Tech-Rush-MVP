@@ -192,13 +192,17 @@ class _StatusChipState extends State<StatusChip>
           ],
 
           // Status Label
-          Text(
-            displayLabel,
-            style: GoogleFonts.spaceMono(
-              fontSize: 10.0,
-              fontWeight: FontWeight.bold,
-              color: style.text,
-              letterSpacing: 0.5,
+          Flexible(
+            child: Text(
+              displayLabel,
+              style: GoogleFonts.spaceMono(
+                fontSize: 10.0,
+                fontWeight: FontWeight.bold,
+                color: style.text,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

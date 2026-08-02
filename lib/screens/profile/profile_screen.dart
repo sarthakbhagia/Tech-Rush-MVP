@@ -304,15 +304,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'ACTIVE SKILLS & CERTIFICATIONS',
-                        style: GoogleFonts.spaceMono(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.inkMuted,
-                          letterSpacing: 1.0,
+                      Expanded(
+                        child: Text(
+                          'ACTIVE SKILLS & CERTIFICATIONS',
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.inkMuted,
+                            letterSpacing: 1.0,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: AppSpacing.xs),
                       GestureDetector(
                         onTap: _openEditSkillsSheet,
                         child: Text(
@@ -537,19 +542,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              color: AppColors.inkMuted,
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: AppColors.inkMuted,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Text(
-            value,
-            style: GoogleFonts.spaceMono(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: valueColor ?? AppColors.inkPrimary,
+          const SizedBox(width: AppSpacing.sm),
+          Flexible(
+            child: Text(
+              value,
+              style: GoogleFonts.spaceMono(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: valueColor ?? AppColors.inkPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -584,24 +598,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: iconColor ?? AppColors.inkMuted,
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Text(
-                  label,
-                  style: GoogleFonts.inter(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: textColor ?? AppColors.inkPrimary,
+            Expanded(
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 16,
+                    color: iconColor ?? AppColors.inkMuted,
                   ),
-                ),
-              ],
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: GoogleFonts.inter(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: textColor ?? AppColors.inkPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: AppSpacing.sm),
             Icon(
               trailingIcon,
               size: 16,
