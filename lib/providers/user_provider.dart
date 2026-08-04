@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_profile.dart';
 import '../services/supabase_service.dart';
 import '../services/profile_service.dart';
+import '../core/utils/formatters.dart';
 
 class UserProfileNotifier extends StateNotifier<UserProfile> {
   final ProfileService _profileService = ProfileService();
@@ -73,6 +74,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       name: fullName,
       email: email,
       phone: phone,
+      role: role,
       streetAddress: streetAddress,
       locality: locality,
       city: city,
@@ -103,6 +105,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       state = UserProfile(
         name: user.email?.split('@').first ?? 'User',
         email: user.email ?? email,
+        role: 'employer',
         streetAddress: 'Flat 302, Green Acres',
         locality: 'Indiranagar',
         city: 'BLR',
@@ -168,6 +171,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     String role = 'employer',
     bool isDemoMode = false,
   }) async {
+    final cleanToken = Formatters.toWesternDigits(token).trim();
     final formattedPhone = phone.startsWith('+') ? phone : '+91$phone';
     User? user;
 
@@ -175,22 +179,22 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       try {
         final authResponse = await SupabaseService().client.auth.verifyOTP(
               phone: formattedPhone,
-              token: token,
+              token: cleanToken,
               type: OtpType.sms,
             );
         user = authResponse.user;
       } on AuthException catch (e) {
         if ((e.message.contains('Unsupported phone provider') ||
                 e.message.contains('disabled')) &&
-            token == '123456') {
+            cleanToken == '123456') {
           user = SupabaseService().client.auth.currentUser;
         } else {
           rethrow;
         }
       }
     } else {
-      if (token != '123456') {
-        throw const AuthException('Invalid OTP token. Please enter 123456');
+      if (cleanToken != '123456') {
+        throw const AuthException('Invalid code. Please check and try again.');
       }
       user = SupabaseService().client.auth.currentUser;
     }
@@ -253,21 +257,31 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     String? name,
     String? phone,
     String? email,
+    String? role,
     String? streetAddress,
     String? locality,
     String? city,
     String? pincode,
     String? photoUrl,
+    List<String>? skills,
+    double? dailyRate,
+    double? dispatchRadiusKm,
+    String? availabilityStatus,
   }) async {
     state = state.copyWith(
       name: name,
       phone: phone,
       email: email,
+      role: role,
       streetAddress: streetAddress,
       locality: locality,
       city: city,
       pincode: pincode,
       photoUrl: photoUrl,
+      skills: skills,
+      dailyRate: dailyRate,
+      dispatchRadiusKm: dispatchRadiusKm,
+      availabilityStatus: availabilityStatus,
     );
 
     final user = SupabaseService().client.auth.currentUser;
@@ -280,9 +294,19 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
         city: state.city,
         email: state.email,
         phone: state.phone,
+        role: state.role,
+        skills: state.skills,
+        dailyRate: state.dailyRate,
+        dispatchRadiusKm: state.dispatchRadiusKm,
+        availabilityStatus: state.availabilityStatus,
         photoUrl: state.photoUrl,
       );
     }
+  }
+
+  /// Updates active user role ('employer' / 'worker') locally and in Supabase
+  Future<void> updateRole(String newRole) async {
+    await updateProfile(role: newRole);
   }
 }
 

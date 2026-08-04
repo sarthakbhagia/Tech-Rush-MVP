@@ -13,6 +13,8 @@ import '../../providers/user_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../services/storage_service.dart';
 import '../../services/work_sample_service.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -85,22 +87,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  final List<String> _skills = [
-    'House Painting',
-    'Wall Tiling',
-    'Plumbing Leak Repair',
-    'Waterproofing',
-  ];
-
   final TextEditingController _skillInputController = TextEditingController();
+  final TextEditingController _dailyRateController = TextEditingController();
 
   @override
   void dispose() {
     _skillInputController.dispose();
+    _dailyRateController.dispose();
     super.dispose();
   }
 
   void _openEditSkillsSheet() {
+    // Read current skills from provider — source of truth
+    final currentSkills = List<String>.from(ref.read(userProfileProvider).skills);
+
     showAppBottomSheet(
       context: context,
       title: 'Edit Active Skill Certifications',
@@ -141,9 +141,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ElevatedButton(
                     onPressed: () {
                       final text = _skillInputController.text.trim();
-                      if (text.isNotEmpty && !_skills.contains(text)) {
-                        setState(() => _skills.add(text));
-                        setSheetState(() {});
+                      if (text.isNotEmpty && !currentSkills.contains(text)) {
+                        setSheetState(() => currentSkills.add(text));
                         _skillInputController.clear();
                       }
                     },
@@ -177,7 +176,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Wrap(
                 spacing: AppSpacing.xs + 2,
                 runSpacing: AppSpacing.xs + 2,
-                children: _skills.map((skill) {
+                children: currentSkills.map((skill) {
                   return Chip(
                     backgroundColor: AppColors.surfaceRaised,
                     side: const BorderSide(color: AppColors.border),
@@ -194,11 +193,42 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       color: AppColors.danger,
                     ),
                     onDeleted: () {
-                      setState(() => _skills.remove(skill));
-                      setSheetState(() {});
+                      setSheetState(() => currentSkills.remove(skill));
                     },
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Persist to provider → Supabase
+                    ref.read(userProfileProvider.notifier).updateProfile(
+                          skills: List.from(currentSkills),
+                        );
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: AppColors.success,
+                        content: Text('Skills saved!', style: GoogleFonts.inter(fontSize: 13, color: Colors.white)),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+                  ),
+                  child: Text(
+                    'Save Skills',
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
             ],
           );
@@ -207,8 +237,63 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Future<void> _openEditDailyRateDialog() async {
+    final user = ref.read(userProfileProvider);
+    _dailyRateController.text = user.dailyRate.toStringAsFixed(0);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(
+          'Set Daily Rate',
+          style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.inkPrimary),
+        ),
+        content: TextField(
+          controller: _dailyRateController,
+          keyboardType: const TextInputType.numberWithOptions(decimal: false),
+          style: GoogleFonts.spaceMono(fontSize: 15, color: AppColors.inkPrimary),
+          decoration: InputDecoration(
+            prefixText: '₹ ',
+            suffixText: '/ day',
+            hintText: '650',
+            border: OutlineInputBorder(borderRadius: AppRadii.control),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: GoogleFonts.inter(color: AppColors.inkMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final parsed = double.tryParse(_dailyRateController.text.trim());
+              if (parsed != null && parsed > 0) {
+                ref.read(userProfileProvider.notifier).updateProfile(dailyRate: parsed);
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppColors.success,
+                    content: Text('Daily rate updated to ₹${parsed.toStringAsFixed(0)}/day!',
+                        style: GoogleFonts.inter(fontSize: 13, color: Colors.white)),
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+            ),
+            child: Text('Save', style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final user = ref.watch(userProfileProvider);
 
     return Scaffold(
@@ -218,7 +303,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Text(
-          'System Profile & Settings',
+          l10n.profileTitle,
           style: GoogleFonts.sora(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -343,7 +428,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ],
                             ),
                             Text(
-                              'Verified Employer / Worker',
+                              l10n.verifiedEmployerBadge,
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AppColors.inkMuted,
@@ -463,7 +548,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     spacing: AppSpacing.xs + 2,
                     runSpacing: AppSpacing.xs + 2,
                     children: [
-                      ..._skills.map((skill) {
+                      ...user.skills.map((skill) {
                         return Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 10,
@@ -641,7 +726,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'WORKFORCE DISPATCH SPECS',
+                    l10n.profileDispatchSpecs,
                     style: GoogleFonts.spaceMono(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -650,12 +735,178 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  _buildSpecRow('Expected Daily Rate', '₹650/day',
-                      valueColor: AppColors.brand),
-                  _buildSpecRow('Dispatch Radius', '15 km'),
-                  _buildSpecRow('Preferred Shift', 'Morning (08:00 - 16:00)'),
-                  _buildSpecRow('Payment Mode', 'Instant UPI / Cash',
+                  GestureDetector(
+                    onTap: _openEditDailyRateDialog,
+                    child: _buildSpecRow(
+                      l10n.profileExpectedDailyRate,
+                      '₹${user.dailyRate.toStringAsFixed(0)}/day',
+                      valueColor: AppColors.brand,
+                      trailing: const Icon(Icons.edit_outlined, size: 13, color: AppColors.brand),
+                    ),
+                  ),
+                  _buildSpecRow(l10n.profileDispatchRadius, '${user.dispatchRadiusKm.toStringAsFixed(0)} km'),
+                  _buildSpecRow(l10n.profilePreferredShift, 'Morning (08:00 - 16:00)'),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'AVAILABILITY',
+                            style: GoogleFonts.spaceMono(fontSize: 10, fontWeight: FontWeight.w500, color: AppColors.inkMuted),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            user.availabilityStatus == 'available' ? 'Available for Work' : 'Busy / Unavailable',
+                            style: GoogleFonts.sora(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: user.availabilityStatus == 'available' ? AppColors.success : AppColors.danger,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Switch.adaptive(
+                        value: user.availabilityStatus == 'available',
+                        activeColor: AppColors.success,
+                        onChanged: (val) {
+                          ref.read(userProfileProvider.notifier).updateProfile(
+                                availabilityStatus: val ? 'available' : 'busy',
+                              );
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  _buildSpecRow(l10n.profilePaymentMode, 'Instant UPI / Cash',
                       isLast: true),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+
+            // Section 4.5: App Language Settings Card
+            Container(
+              padding: const EdgeInsets.all(AppSpacing.lg),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: AppRadii.card,
+                border: Border.all(color: AppColors.border),
+                boxShadow: AppShadows.card,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    (AppLocalizations.of(context)?.languageSettingTitle ?? 'APP LANGUAGE / भाषा').toUpperCase(),
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.inkMuted,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brandSubtle,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.language_rounded,
+                          size: 20,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              ref.watch(localeProvider).languageCode == 'hi' ? 'हिंदी (Hindi)' : 'English',
+                              style: GoogleFonts.sora(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.inkPrimary,
+                              ),
+                            ),
+                            Text(
+                              ref.watch(localeProvider).languageCode == 'hi'
+                                  ? 'वर्तमान भाषा: हिंदी'
+                                  : 'Active Language: English',
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                color: AppColors.inkMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Segmented Language Toggle Button
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceRaised,
+                          borderRadius: AppRadii.pill,
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: () => ref.read(localeProvider.notifier).setLocale(const Locale('en')),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: ref.watch(localeProvider).languageCode == 'en'
+                                      ? AppColors.brand
+                                      : Colors.transparent,
+                                  borderRadius: AppRadii.pill,
+                                ),
+                                child: Text(
+                                  'English',
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: ref.watch(localeProvider).languageCode == 'en'
+                                        ? Colors.white
+                                        : AppColors.inkMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () => ref.read(localeProvider.notifier).setLocale(const Locale('hi')),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: ref.watch(localeProvider).languageCode == 'hi'
+                                      ? AppColors.brand
+                                      : Colors.transparent,
+                                  borderRadius: AppRadii.pill,
+                                ),
+                                child: Text(
+                                  'हिंदी',
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: ref.watch(localeProvider).languageCode == 'hi'
+                                        ? Colors.white
+                                        : AppColors.inkMuted,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -674,7 +925,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SYSTEM RECONFIGURATION',
+                    l10n.profileSystemReconfiguration,
                     style: GoogleFonts.spaceMono(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -685,12 +936,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: AppSpacing.md),
                   _buildActionRow(
                     Icons.terminal_rounded,
-                    'View System Gallery & Widgets',
+                    l10n.profileViewSystemGallery,
                     onTap: () => context.push('/demo'),
                   ),
                   _buildActionRow(
                     Icons.palette_outlined,
-                    'Toggle Dark/Warm Palette Tokens',
+                    l10n.profileTogglePalette,
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Warm dark mode tokens active.')),
@@ -699,7 +950,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                   _buildActionRow(
                     Icons.cleaning_services_rounded,
-                    'Clear Cached Dispatch Data',
+                    l10n.profileClearCache,
                     isLast: true,
                     onTap: () {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -725,7 +976,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'ACCOUNT & COMPLIANCE',
+                    l10n.profileAccountCompliance,
                     style: GoogleFonts.spaceMono(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -736,17 +987,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: AppSpacing.md),
                   _buildActionRow(
                     Icons.badge_outlined,
-                    'Aadhaar Document (Verified)',
+                    l10n.profileAadhaarDoc,
                     trailingIcon: Icons.check_circle_rounded,
                     trailingColor: AppColors.success,
                   ),
                   _buildActionRow(
                     Icons.account_balance_outlined,
-                    'Bank Account for Instant UPI Payout',
+                    l10n.profileBankAccount,
                   ),
                   _buildActionRow(
                     Icons.logout_rounded,
-                    'Sign Out of Session',
+                    l10n.profileSignOut,
                     textColor: AppColors.danger,
                     iconColor: AppColors.danger,
                     isLast: true,
@@ -768,7 +1019,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildSpecRow(String label, String value,
-      {Color? valueColor, bool isLast = false}) {
+      {Color? valueColor, bool isLast = false, Widget? trailing}) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
@@ -808,6 +1059,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 4),
+            trailing,
+          ],
         ],
       ),
     );

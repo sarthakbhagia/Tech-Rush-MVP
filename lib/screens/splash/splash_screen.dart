@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../core/spacing.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/category_tile.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
+import '../../models/job_category.dart';
 
 enum GuestRole { employer, worker }
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   GuestRole _role = GuestRole.employer;
 
   void _toggleRole(GuestRole role) {
@@ -29,6 +33,8 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final isEmployer = _role == GuestRole.employer;
+    final l10n = AppLocalizations.of(context)!;
+    final currentLocale = ref.watch(localeProvider);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -74,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header Row: KaamSetu Logo + App Tagline + Sign In Button
+                    // Header Row: KaamSetu Logo + App Tagline + Language Switcher + Sign In Button
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -84,24 +90,53 @@ class _SplashScreenState extends State<SplashScreen> {
                         // Center App Title
                         Expanded(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: Text(
-                              'KaamSetu',
+                              l10n.appName,
                               style: GoogleFonts.sora(
                                 fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+
+                        // Language Toggle Pill
+                        GestureDetector(
+                          onTap: () => ref.read(localeProvider.notifier).toggleLocale(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.25),
+                              borderRadius: AppRadii.pill,
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.5),
+                              ),
+                            ),
+                            child: Text(
+                              currentLocale.languageCode == 'en' ? 'हिं' : 'EN',
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
                             ),
                           ),
                         ),
+                        const SizedBox(width: 6),
 
                         // Right Sign In CTA Button
                         GestureDetector(
                           onTap: _navigateToAuth,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 10,
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
@@ -125,9 +160,9 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
-                                  'Sign In',
+                                  l10n.authSignIn,
                                   style: GoogleFonts.spaceMono(
-                                    fontSize: 10.5,
+                                    fontSize: 10,
                                     fontWeight: FontWeight.bold,
                                     color: AppColors.brand,
                                   ),
@@ -165,7 +200,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'I NEED WORKERS',
+                                  l10n.splashModeEmployer,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
@@ -190,7 +225,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  "I'M LOOKING FOR WORK",
+                                  l10n.splashModeWorker,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
@@ -210,8 +245,8 @@ class _SplashScreenState extends State<SplashScreen> {
                     // Hero Guest Headline & Subtext
                     Text(
                       isEmployer
-                          ? 'What daily service do you need done today?'
-                          : 'Browse Open Daily Dispatches Nearby',
+                          ? l10n.dashboardEmployerHeadline
+                          : l10n.splashWorkerHeadline,
                       style: GoogleFonts.sora(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -222,8 +257,8 @@ class _SplashScreenState extends State<SplashScreen> {
                     const SizedBox(height: 4),
                     Text(
                       isEmployer
-                          ? 'Connect with 1,200+ local daily-wage specialists'
-                          : 'Set your rate and view nearby daily postings',
+                          ? l10n.dashboardEmployerSubhead
+                          : l10n.dashboardWorkerSubhead,
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.9),
@@ -259,8 +294,8 @@ class _SplashScreenState extends State<SplashScreen> {
                             Expanded(
                               child: Text(
                                 isEmployer
-                                    ? 'Search "House Painting", "Plumbing"...'
-                                    : 'Search jobs near your location...',
+                                    ? l10n.dashboardEmployerSearchPlaceholder
+                                    : l10n.dashboardWorkerSearchPlaceholder,
                                 style: GoogleFonts.inter(
                                   fontSize: 13,
                                   color: AppColors.inkMuted,
@@ -319,8 +354,8 @@ class _SplashScreenState extends State<SplashScreen> {
                               children: [
                                 Text(
                                   isEmployer
-                                      ? '100% Aadhaar Verified Daily Pros'
-                                      : 'Guaranteed Same-Day UPI Payout',
+                                      ? l10n.dashboardEmployerBannerTitle
+                                      : l10n.dashboardWorkerBannerTitle,
                                   style: GoogleFonts.sora(
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
@@ -330,8 +365,8 @@ class _SplashScreenState extends State<SplashScreen> {
                                 const SizedBox(height: 2),
                                 Text(
                                   isEmployer
-                                      ? 'Book verified daily workers with instant response'
-                                      : 'Direct connection with verified local households',
+                                      ? l10n.dashboardEmployerBannerSubhead
+                                      : l10n.dashboardWorkerBannerSubhead,
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     color: Colors.white.withValues(alpha: 0.85),
@@ -359,21 +394,26 @@ class _SplashScreenState extends State<SplashScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          isEmployer
-                              ? 'POST A NEW JOB BY CATEGORY'
-                              : 'AVAILABLE WORK CATEGORIES',
-                          style: GoogleFonts.spaceMono(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.inkPrimary,
-                            letterSpacing: 0.8,
+                        Expanded(
+                          child: Text(
+                            isEmployer
+                                ? l10n.postNewJobByCategory
+                                : l10n.availableWorkCategories,
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.inkPrimary,
+                              letterSpacing: 0.8,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: AppSpacing.xs),
                         GestureDetector(
                           onTap: _navigateToAuth,
                           child: Text(
-                            'Sign In to Browse ->',
+                            l10n.splashSignInToBrowse,
                             style: GoogleFonts.spaceMono(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -385,7 +425,7 @@ class _SplashScreenState extends State<SplashScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // 3-Column Marketplace Category Grid (Gated -> Auth)
+                    // 3-Column Marketplace Category Grid (Built from single source AppCategories)
                     GridView.count(
                       crossAxisCount: 3,
                       shrinkWrap: true,
@@ -395,47 +435,16 @@ class _SplashScreenState extends State<SplashScreen> {
                       mainAxisSpacing: 14,
                       crossAxisSpacing: 14,
                       childAspectRatio: 0.95,
-                      children: [
-                        CategoryTile(
-                          icon: Icons.format_paint_rounded,
-                          label: 'Painting',
-                          badgeText: 'HIGH DEMAND',
-                          badgeColor: AppColors.brand,
-                          badgeBg: const Color(0xFFFFF7ED),
+                      children: AppCategories.all.map((cat) {
+                        return CategoryTile(
+                          icon: cat.icon,
+                          label: cat.getLocalizedName(l10n),
+                          badgeText: cat.getLocalizedBadge(l10n),
+                          badgeColor: cat.badgeColor ?? AppColors.brand,
+                          badgeBg: cat.badgeBg ?? const Color(0xFFFFF7ED),
                           onTap: _navigateToAuth,
-                        ),
-                        CategoryTile(
-                          icon: Icons.cleaning_services_rounded,
-                          label: 'Cleaning',
-                          badgeText: 'POPULAR',
-                          badgeColor: const Color(0xFF2563EB),
-                          badgeBg: const Color(0xFFEFF6FF),
-                          onTap: _navigateToAuth,
-                        ),
-                        CategoryTile(
-                          icon: Icons.plumbing_rounded,
-                          label: 'Plumbing',
-                          badgeText: 'URGENT',
-                          badgeColor: AppColors.danger,
-                          badgeBg: const Color(0xFFFEF2F2),
-                          onTap: _navigateToAuth,
-                        ),
-                        CategoryTile(
-                          icon: Icons.soup_kitchen_rounded,
-                          label: 'Cooking',
-                          onTap: _navigateToAuth,
-                        ),
-                        CategoryTile(
-                          icon: Icons.grass_rounded,
-                          label: 'Gardening',
-                          onTap: _navigateToAuth,
-                        ),
-                        CategoryTile(
-                          icon: Icons.electric_bolt_rounded,
-                          label: 'Electrical',
-                          onTap: _navigateToAuth,
-                        ),
-                      ],
+                        );
+                      }).toList(),
                     ),
                     const SizedBox(height: AppSpacing.xl),
 
@@ -464,7 +473,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Verified Pros',
+                                  l10n.statVerifiedPros,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 10,
                                     color: AppColors.inkMuted,
@@ -491,7 +500,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Avg Daily Rate',
+                                  l10n.statAvgDailyRate,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 10,
                                     color: AppColors.inkMuted,
@@ -518,7 +527,7 @@ class _SplashScreenState extends State<SplashScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Job Dispatch',
+                                  l10n.statJobDispatch,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 10,
                                     color: AppColors.inkMuted,
@@ -542,13 +551,17 @@ class _SplashScreenState extends State<SplashScreen> {
                           color: AppColors.success,
                         ),
                         const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          'RLS ENFORCED • AADHAAR VERIFIED WORKFORCE',
-                          style: GoogleFonts.spaceMono(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.inkMuted,
-                            letterSpacing: 0.5,
+                        Flexible(
+                          child: Text(
+                            l10n.splashFooterSecurity,
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: AppColors.inkMuted,
+                              letterSpacing: 0.5,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],

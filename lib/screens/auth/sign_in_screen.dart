@@ -5,9 +5,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
 import '../../core/spacing.dart';
+import '../../core/utils/formatters.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/otp_verification_bottom_sheet.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
 
 enum SignInMethod { email, phone }
 
@@ -27,8 +30,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   bool _isLoading = false;
   String? _errorMessage;
-
-
 
   @override
   void dispose() {
@@ -100,6 +101,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final currentLocale = ref.watch(localeProvider);
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
@@ -107,9 +111,33 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 40),
+                  const Logo(size: 28, showSubtitle: true),
+                  GestureDetector(
+                    onTap: () => ref.read(localeProvider.notifier).toggleLocale(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceRaised,
+                        borderRadius: AppRadii.pill,
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        currentLocale.languageCode == 'en' ? 'हिं' : 'EN',
+                        style: GoogleFonts.spaceMono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.xl),
-              const Logo(size: 28, showSubtitle: true),
-              const SizedBox(height: AppSpacing.xxl),
 
               // Main Sign In Card
               Container(
@@ -124,7 +152,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Welcome Back',
+                      l10n.authWelcomeBack,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.sora(
                         fontSize: 18,
@@ -202,7 +230,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'EMAIL AUTH',
+                                  l10n.authEmailAuth,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 11,
                                     fontWeight: _method == SignInMethod.email
@@ -235,7 +263,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'MOBILE OTP',
+                                  l10n.authMobileOtp,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 11,
                                     fontWeight: _method == SignInMethod.phone
@@ -256,7 +284,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
                     if (_method == SignInMethod.email) ...[
                       Text(
-                        'EMAIL ADDRESS',
+                        l10n.authEmail,
                         style: GoogleFonts.spaceMono(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -277,7 +305,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       const SizedBox(height: AppSpacing.md),
 
                       Text(
-                        'PASSWORD',
+                        l10n.authPassword,
                         style: GoogleFonts.spaceMono(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -297,7 +325,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       ),
                     ] else ...[
                       Text(
-                        'MOBILE NUMBER',
+                        l10n.authPhoneNumber,
                         style: GoogleFonts.spaceMono(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -334,6 +362,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                             child: TextField(
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
+                              inputFormatters: const [
+                                WesternDigitsTextInputFormatter(),
+                              ],
                               maxLength: 10,
                               style: GoogleFonts.spaceMono(fontSize: 14, color: AppColors.inkPrimary),
                               decoration: const InputDecoration(
@@ -371,7 +402,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    'Sign In',
+                                    _method == SignInMethod.email ? l10n.authSignIn : l10n.authSendOtpCta,
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,

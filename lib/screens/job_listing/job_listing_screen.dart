@@ -12,6 +12,9 @@ import '../../widgets/empty_state.dart';
 import '../../widgets/filter_bottom_sheet.dart';
 import '../../providers/filter_provider.dart';
 import '../../providers/job_provider.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
+import '../../models/job_category.dart';
 
 class JobListingScreen extends ConsumerStatefulWidget {
   final String initialCategory;
@@ -29,15 +32,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  static const List<String> _categories = [
-    'All',
-    'Painting',
-    'Cleaning',
-    'Plumbing',
-    'Gardening',
-    'Cooking',
-    'Electrical',
-  ];
+  List<String> get _categories => AppCategories.categoryIdsWithAll;
 
   @override
   void initState() {
@@ -124,10 +119,43 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
     return list;
   }
 
+  String _getCategoryName(BuildContext context, String cat) {
+    final l10n = AppLocalizations.of(context)!;
+    switch (cat.toLowerCase()) {
+      case 'painting':
+        return l10n.categoryPainting;
+      case 'cleaning':
+        return l10n.categoryCleaning;
+      case 'plumbing':
+        return l10n.categoryPlumbing;
+      case 'cooking':
+        return l10n.categoryCooking;
+      case 'gardening':
+        return l10n.categoryGardening;
+      case 'electrical':
+        return l10n.categoryElectrical;
+      case 'carpentry':
+        return l10n.categoryCarpentry;
+      case 'all':
+        return l10n.categoryAll;
+      default:
+        return cat;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final asyncJobs = ref.watch(jobsByCategoryProvider(_selectedCategory));
+    final l10n = AppLocalizations.of(context)!;
     final filterState = ref.watch(jobFilterProvider);
+    final queryParams = JobQueryParams(
+      category: filterState.categories.isNotEmpty ? filterState.categories.first : _selectedCategory,
+      status: _selectedStatusTab,
+      minPrice: filterState.minPrice,
+      maxPrice: filterState.maxPrice,
+      searchQuery: _searchQuery,
+      sortBy: filterState.sortBy,
+    );
+    final asyncJobs = ref.watch(filteredJobsProvider(queryParams));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -136,12 +164,18 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.inkPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          },
         ),
         title: Text(
           _selectedCategory == 'All'
-              ? 'All Job Listings'
-              : '$_selectedCategory Jobs',
+              ? l10n.jobListingsTitle
+              : l10n.jobListingsCategoryTitle(_getCategoryName(context, _selectedCategory)),
           style: GoogleFonts.sora(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -186,7 +220,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                             setState(() => _searchQuery = val);
                           },
                           decoration: InputDecoration(
-                            hintText: 'Search title, category, location...',
+                            hintText: l10n.searchPlaceholderListings,
                             prefixIcon: const Icon(
                               Icons.search_rounded,
                               size: 18,
@@ -233,6 +267,15 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                                 Icons.tune_rounded,
                                 size: 16,
                                 color: filterState.isActive ? AppColors.brand : AppColors.inkPrimary,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.filterButton,
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: filterState.isActive ? AppColors.brand : AppColors.inkPrimary,
+                                ),
                               ),
                               const SizedBox(width: 4),
                               if (filterState.isActive)
@@ -294,7 +337,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                             ref.read(jobFilterProvider.notifier).reset();
                           },
                           child: Text(
-                            'Clear All',
+                            l10n.clearAll,
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -319,7 +362,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                         padding: const EdgeInsets.only(right: AppSpacing.xs + 2),
                         child: ChoiceChip(
                           label: Text(
-                            cat,
+                            _getCategoryName(context, cat),
                             style: GoogleFonts.spaceMono(
                               fontSize: 11,
                               fontWeight: isSelected
@@ -360,15 +403,15 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
 
                 Row(
                   children: [
-                    _buildStatusTab('ALL', 'ALL'),
+                    _buildStatusTab('ALL', l10n.statusAll),
                     const SizedBox(width: AppSpacing.xs + 2),
-                    _buildStatusTab('OPEN', 'OPEN',
+                    _buildStatusTab('OPEN', l10n.statusOpen,
                         chipType: StatusChipType.open),
                     const SizedBox(width: AppSpacing.xs + 2),
-                    _buildStatusTab('ASSIGNED', 'ASSIGNED',
+                    _buildStatusTab('ASSIGNED', l10n.statusAssigned,
                         chipType: StatusChipType.assigned),
                     const SizedBox(width: AppSpacing.xs + 2),
-                    _buildStatusTab('COMPLETED', 'DONE',
+                    _buildStatusTab('COMPLETED', l10n.statusCompleted,
                         chipType: StatusChipType.completed),
                   ],
                 ),
@@ -378,9 +421,8 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
 
           Expanded(
             child: asyncJobs.when(
-              data: (rawJobs) {
-                final filtered = _filterJobs(rawJobs);
-                if (filtered.isEmpty) {
+              data: (jobs) {
+                if (jobs.isEmpty) {
                   return Center(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(AppSpacing.lg),
@@ -398,15 +440,15 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
 
                 return RefreshIndicator(
                   onRefresh: () async {
-                    ref.invalidate(jobsByCategoryProvider);
+                    ref.invalidate(filteredJobsProvider);
                   },
                   backgroundColor: AppColors.surface,
                   color: AppColors.brand,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(AppSpacing.lg),
-                    itemCount: filtered.length,
+                    itemCount: jobs.length,
                     itemBuilder: (context, index) {
-                      final job = filtered[index];
+                      final job = jobs[index];
                       return ServiceCard(
                         title: job.title,
                         category: job.category,
@@ -415,25 +457,24 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                         price: job.wage,
                         originalPrice: job.originalWage,
                         verified: job.verified,
-                        onSelect: () {
-                          context.push('/job/${job.id}');
-                        },
+                        onSelect: () => context.push('/job/${job.id}'),
                       );
                     },
                   ),
                 );
               },
-              loading: () => const SingleChildScrollView(
-                padding: EdgeInsets.all(AppSpacing.lg),
-                child: SkeletonList(count: 3),
-              ),
+              loading: () => const SkeletonList(count: 4),
               error: (err, stack) => Center(
-                child: EmptyState(
-                  icon: Icons.error_outline_rounded,
-                  title: 'Unable to Load Jobs',
-                  description: 'Error: $err',
-                  actionLabel: 'Retry',
-                  onAction: () => ref.invalidate(jobsByCategoryProvider),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: EmptyState(
+                    icon: Icons.search_off_rounded,
+                    title: 'No Job Dispatches Found',
+                    description:
+                        'No listings match your search term or category filters. Clear filters to see available daily jobs.',
+                    actionLabel: 'Clear All Filters',
+                    onAction: _clearFilters,
+                  ),
                 ),
               ),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../l10n/app_localizations.dart';
 
 enum StatusChipType {
   open,
@@ -129,8 +130,24 @@ class _StatusChipState extends State<StatusChip>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final style = _getStyle(widget.status);
-    final displayLabel = widget.labelOverride ?? style.label;
+    String defaultLabel = style.label;
+    if (l10n != null) {
+      switch (widget.status) {
+        case StatusChipType.open:
+          defaultLabel = l10n.statusOpen;
+          break;
+        case StatusChipType.assigned:
+        case StatusChipType.interested:
+          defaultLabel = l10n.statusAssigned;
+          break;
+        case StatusChipType.completed:
+          defaultLabel = l10n.statusCompletedFull;
+          break;
+      }
+    }
+    final displayLabel = widget.labelOverride ?? defaultLabel;
 
     return Container(
       padding: const EdgeInsets.symmetric(

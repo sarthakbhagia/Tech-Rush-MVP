@@ -14,6 +14,8 @@ import '../../widgets/trust_badge_row.dart';
 import '../../widgets/provider_card.dart';
 import '../../widgets/sticky_bottom_bar.dart';
 import '../../widgets/rate_worker_bottom_sheet.dart';
+import '../../widgets/empty_state.dart';
+import '../../l10n/app_localizations.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -117,6 +119,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final asyncJob = ref.watch(jobDetailProvider(widget.jobId));
     final user = ref.watch(userProfileProvider);
 
@@ -127,10 +130,16 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.inkPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          },
         ),
         title: Text(
-          'Job Dispatch Detail',
+          l10n.jobDetailTitle,
           style: GoogleFonts.sora(
             fontSize: 16,
             fontWeight: FontWeight.bold,
@@ -148,7 +157,16 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       body: asyncJob.when(
         data: (job) {
           if (job == null) {
-            return const Center(child: Text('Job not found'));
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(AppSpacing.lg),
+                child: EmptyState(
+                  icon: Icons.work_off_outlined,
+                  title: 'Job Dispatch Not Found',
+                  description: 'The requested job posting could not be found or has been un-published.',
+                ),
+              ),
+            );
           }
 
           final isAssigned = job.status == 'assigned';
@@ -275,7 +293,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'TASK & SITE REQUIREMENTS',
+                        l10n.jobDetailTaskRequirements,
                         style: GoogleFonts.spaceMono(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -300,7 +318,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
                 // Employer Info
                 Text(
-                  'EMPLOYER & DISPATCH OWNER',
+                  l10n.jobDetailEmployerHeader,
                   style: GoogleFonts.spaceMono(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -325,7 +343,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
                 // Applicant List (For Employer or viewable applications)
                 Text(
-                  'APPLICANT BIDS & DISPATCH REGISTRY (${applications.length})',
+                  '${l10n.jobDetailApplicantBids} (${applications.length})',
                   style: GoogleFonts.spaceMono(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -344,7 +362,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                       border: Border.all(color: AppColors.border),
                     ),
                     child: Text(
-                      'No applications submitted yet. Workers nearby can express interest directly.',
+                      l10n.jobDetailNoApps,
                       style: GoogleFonts.inter(fontSize: 12, color: AppColors.inkMuted),
                     ),
                   )
@@ -411,7 +429,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  'Accept',
+                                  l10n.jobDetailAcceptCta,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -444,16 +462,13 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                                     onTap: () async {
                                       if (!isCompleted) {
                                         // Mark job completed in database first
-                                        await ref
-                                            .read(applicationServiceProvider)
-                                            .updateApplicationStatus(
-                                              applicationId: app.id,
+                                        await ref.read(jobServiceProvider).updateJobStatus(
                                               jobId: job.id,
-                                              workerName: app.workerName,
-                                              status: 'assigned',
+                                              status: 'completed',
                                             );
-                                        // Update job status to completed locally/remotely
                                         ref.invalidate(jobDetailProvider(job.id));
+                                        ref.invalidate(jobsByCategoryProvider);
+                                        ref.invalidate(filteredJobsProvider);
                                       }
                                       if (mounted) {
                                         openRateWorkerBottomSheet(

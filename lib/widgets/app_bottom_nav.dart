@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../l10n/app_localizations.dart';
 
 class AppBottomNavScaffold extends StatelessWidget {
   final Widget child;
@@ -40,6 +41,7 @@ class AppBottomNavScaffold extends StatelessWidget {
     final activeIndex = _calculateSelectedIndex(context);
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final effectiveBottomPadding = math.max(bottomInset, 8.0);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       body: child,
@@ -65,20 +67,20 @@ class AppBottomNavScaffold extends StatelessWidget {
           children: [
             _NavBarItem(
               icon: Icons.space_dashboard_rounded,
-              label: 'Dashboard',
+              label: l10n?.navDashboard ?? 'Dashboard',
               isSelected: activeIndex == 0,
               onTap: () => _onItemTapped(0, context),
             ),
             _NavBarItem(
               icon: Icons.work_outline_rounded,
-              label: 'Job Postings',
+              label: l10n?.navJobPostings ?? 'Job Postings',
               isSelected: activeIndex == 1,
               badgeCount: 2, // Reusable notification badge overlay
               onTap: () => _onItemTapped(1, context),
             ),
             _NavBarItem(
               icon: Icons.person_outline_rounded,
-              label: 'System Profile',
+              label: l10n?.navProfile ?? 'Profile',
               isSelected: activeIndex == 2,
               onTap: () => _onItemTapped(2, context),
             ),

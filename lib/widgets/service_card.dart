@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
 import '../core/utils/formatters.dart';
+import '../l10n/app_localizations.dart';
 
 class ServiceCard extends StatefulWidget {
   final String? image;
@@ -48,11 +49,38 @@ class _ServiceCardState extends State<ServiceCard> {
     setState(() => _isPressed = false);
   }
 
+  String _getCategoryName(BuildContext context, String cat) {
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return cat;
+    switch (cat.toLowerCase()) {
+      case 'painting':
+        return l10n.categoryPainting;
+      case 'cleaning':
+        return l10n.categoryCleaning;
+      case 'plumbing':
+        return l10n.categoryPlumbing;
+      case 'cooking':
+        return l10n.categoryCooking;
+      case 'gardening':
+        return l10n.categoryGardening;
+      case 'electrical':
+        return l10n.categoryElectrical;
+      case 'carpentry':
+        return l10n.categoryCarpentry;
+      case 'all':
+        return l10n.categoryAll;
+      default:
+        return cat;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final categoryPrefix = widget.category.length >= 3
         ? widget.category.substring(0, 3).toUpperCase()
         : widget.category.toUpperCase();
+    final localizedCategory = _getCategoryName(context, widget.category);
 
     return GestureDetector(
       onTapDown: _handleTapDown,
@@ -114,7 +142,7 @@ class _ServiceCardState extends State<ServiceCard> {
                           ),
                         ),
                         child: Text(
-                          'Verified',
+                          l10n?.badgeVerified ?? 'VERIFIED',
                           style: GoogleFonts.spaceMono(
                             fontSize: 9.0,
                             fontWeight: FontWeight.w600,
@@ -140,7 +168,7 @@ class _ServiceCardState extends State<ServiceCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.category.toUpperCase(),
+                            localizedCategory.toUpperCase(),
                             style: GoogleFonts.spaceMono(
                               fontSize: 10.0,
                               fontWeight: FontWeight.w500,

@@ -6,11 +6,13 @@ import '../core/spacing.dart';
 import '../providers/user_provider.dart';
 import 'app_bottom_sheet.dart';
 import 'sticky_bottom_bar.dart';
+import '../l10n/app_localizations.dart';
 
 void openAddressBottomSheet(BuildContext context, WidgetRef ref) {
+  final l10n = AppLocalizations.of(context);
   showAppBottomSheet(
     context: context,
-    title: 'Service Dispatch Location',
+    title: l10n?.updateAddressSheetTitle ?? 'Update Primary Address',
     child: _AddressBottomSheetContent(ref: ref),
   );
 }
@@ -87,6 +89,8 @@ class __AddressBottomSheetContentState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -135,7 +139,7 @@ class __AddressBottomSheetContentState
 
         // Address Fields
         Text(
-          'FLAT / BUILDING / STREET ADDRESS',
+          l10n?.authStreetAddress ?? 'STREET ADDRESS',
           style: GoogleFonts.spaceMono(
             fontSize: 10,
             fontWeight: FontWeight.w500,
@@ -160,7 +164,7 @@ class __AddressBottomSheetContentState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'LOCALITY / AREA *',
+                    l10n?.authLocality ?? 'LOCALITY / AREA *',
                     style: GoogleFonts.spaceMono(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -185,7 +189,7 @@ class __AddressBottomSheetContentState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'CITY *',
+                    l10n?.authCity ?? 'CITY *',
                     style: GoogleFonts.spaceMono(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -213,7 +217,7 @@ class __AddressBottomSheetContentState
           price: _localityController.text.isEmpty
               ? 'Indiranagar'
               : '${_localityController.text}, ${_cityController.text}',
-          ctaLabel: 'Save & Dispatch Location',
+          ctaLabel: l10n?.saveAddressCta ?? 'SAVE ADDRESS',
           onCta: _saveAddress,
         ),
       ],

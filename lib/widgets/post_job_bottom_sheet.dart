@@ -3,17 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../core/utils/formatters.dart';
 import 'package:image_picker/image_picker.dart';
 import '../models/job.dart';
 import '../providers/job_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/storage_service.dart';
 import 'app_bottom_sheet.dart';
+import '../l10n/app_localizations.dart';
+import '../models/job_category.dart';
 
 void openPostJobBottomSheet(BuildContext context, WidgetRef ref, {String? initialCategory}) {
+  final l10n = AppLocalizations.of(context);
   showAppBottomSheet(
     context: context,
-    title: 'Post Daily Dispatch Job',
+    title: l10n?.postJobSheetTitle ?? 'Post a New Job',
     child: _PostJobBottomSheetContent(ref: ref, initialCategory: initialCategory),
   );
 }
@@ -38,25 +42,19 @@ class __PostJobBottomSheetContentState
   final TextEditingController _locationController = TextEditingController();
 
   late String _selectedCategory;
+  DateTime _scheduledDate = DateTime.now();
   bool _isUrgent = false;
   bool _isPosting = false;
   String? _errorMessage;
 
-  static const List<String> _categories = [
-    'Painting',
-    'Cleaning',
-    'Plumbing',
-    'Cooking',
-    'Gardening',
-    'Electrical',
-  ];
+  List<String> get _categories => AppCategories.categoryIds;
 
   @override
   void initState() {
     super.initState();
     _selectedCategory = widget.initialCategory ?? _categories.first;
     final user = widget.ref.read(userProfileProvider);
-    _locationController.text = '${user.locality}, ${user.city}';
+    _locationController.text = user.shortAddress.isNotEmpty ? user.shortAddress : 'Indiranagar, BLR';
   }
 
   @override
@@ -76,6 +74,30 @@ class __PostJobBottomSheetContentState
     final file = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
     if (file != null) {
       setState(() => _jobImageFile = file);
+    }
+  }
+
+  Future<void> _handleSelectScheduledDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _scheduledDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime.now().add(const Duration(days: 90)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.brand,
+              onPrimary: Colors.white,
+              onSurface: AppColors.inkPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() => _scheduledDate = picked);
     }
   }
 
@@ -103,30 +125,30 @@ class __PostJobBottomSheetContentState
 
     final newJob = Job(
       id: '',
+      employerId: null, // populated with auth.uid() inside createJob
       title: title,
       category: _selectedCategory,
-      description: desc,
+      description: desc.isNotEmpty ? desc : '.',
       wage: price,
       originalWage: _isUrgent ? (price * 1.2).roundToDouble() : null,
       status: 'open',
       rating: 5.0,
       reviewCount: 0,
       location: location.isNotEmpty ? location : 'Indiranagar, BLR',
-      date: 'Today',
+      date: '${_scheduledDate.day}/${_scheduledDate.month}/${_scheduledDate.year}',
       employerName: user.name.isNotEmpty ? user.name : 'Employer',
       verified: true,
       urgent: _isUrgent,
       imageUrl: imageUrl,
     );
 
-    final created =
-        await widget.ref.read(jobServiceProvider).createJob(newJob);
+    try {
+      final created = await widget.ref.read(jobServiceProvider).createJob(newJob);
 
-    if (mounted) {
-      setState(() => _isPosting = false);
-
-      if (created != null) {
+      if (mounted) {
+        setState(() => _isPosting = false);
         widget.ref.invalidate(jobsByCategoryProvider);
+        widget.ref.invalidate(jobsByEmployerProvider);
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -137,7 +159,7 @@ class __PostJobBottomSheetContentState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Job "$title" posted successfully!',
+                    'Job "${created.title}" published successfully!',
                     style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
                   ),
                 ),
@@ -145,8 +167,18 @@ class __PostJobBottomSheetContentState
             ),
           ),
         );
-      } else {
-        setState(() => _errorMessage = 'Failed to post job. Please try again.');
+      }
+    } catch (e) {
+      // Log the full raw error for debugging — visible in flutter run console
+      debugPrint('❌ [PostJob] REAL ERROR from Supabase: $e');
+      debugPrint('   Type: ${e.runtimeType}');
+
+      if (mounted) {
+        setState(() {
+          _isPosting = false;
+          // Show friendly message to user; full error is in console
+          _errorMessage = 'Failed to post job: ${e.toString()}';
+        });
       }
     }
   }
@@ -192,7 +224,10 @@ class __PostJobBottomSheetContentState
             items: _categories.map((cat) {
               return DropdownMenuItem(
                 value: cat,
-                child: Text(cat, style: GoogleFonts.inter(fontSize: 13)),
+                child: Text(
+                  AppCategories.getLocalizedName(context, cat),
+                  style: GoogleFonts.inter(fontSize: 13),
+                ),
               );
             }).toList(),
             onChanged: (val) {
@@ -218,7 +253,7 @@ class __PostJobBottomSheetContentState
               hintText: 'e.g. 3 BHK Interior Wall Painting',
             ),
             validator: (val) =>
-                val == null || val.trim().isEmpty ? 'Please enter job title' : null,
+                val == null || val.trim().isEmpty ? 'Please enter a job title' : null,
           ),
           const SizedBox(height: AppSpacing.md),
 
@@ -237,15 +272,16 @@ class __PostJobBottomSheetContentState
             maxLines: 2,
             style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
             decoration: const InputDecoration(
-              hintText: 'Provide task details, tools available, requirements...',
+              hintText: 'Provide task details, tools available, site requirements...',
             ),
             validator: (val) =>
-                val == null || val.trim().isEmpty ? 'Please enter description' : null,
+                val == null || val.trim().isEmpty ? 'Please enter job description' : null,
           ),
           const SizedBox(height: AppSpacing.md),
 
           // Price & Location Row
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -263,12 +299,23 @@ class __PostJobBottomSheetContentState
                     TextFormField(
                       controller: _priceController,
                       keyboardType: TextInputType.number,
+                      inputFormatters: const [
+                        WesternDigitsTextInputFormatter(),
+                      ],
                       style: GoogleFonts.spaceMono(fontSize: 13, color: AppColors.inkPrimary),
                       decoration: const InputDecoration(
                         hintText: '1200',
                       ),
-                      validator: (val) =>
-                          val == null || val.trim().isEmpty ? 'Required' : null,
+                      validator: (val) {
+                        if (val == null || val.trim().isEmpty) {
+                          return 'Required';
+                        }
+                        final parsed = double.tryParse(val.trim());
+                        if (parsed == null || parsed <= 0) {
+                          return 'Must be > 0';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                 ),
@@ -300,6 +347,52 @@ class __PostJobBottomSheetContentState
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Scheduled Date Picker Row
+          Text(
+            'SCHEDULED DISPATCH DATE *',
+            style: GoogleFonts.spaceMono(
+              fontSize: 10,
+              fontWeight: FontWeight.w500,
+              color: AppColors.inkMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: _handleSelectScheduledDate,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceRaised,
+                borderRadius: AppRadii.control,
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_rounded, size: 16, color: AppColors.brand),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_scheduledDate.day}/${_scheduledDate.month}/${_scheduledDate.year}',
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.inkPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    'Change',
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.brand,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
 

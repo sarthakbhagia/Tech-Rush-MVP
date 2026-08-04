@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../l10n/app_localizations.dart';
 
 class RatingRowData {
   final int stars;
@@ -27,6 +28,8 @@ class RatingBreakdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     if (total == 0) {
       return Container(
         width: double.infinity,
@@ -46,7 +49,7 @@ class RatingBreakdown extends StatelessWidget {
                     size: 20, color: AppColors.inkMuted),
                 const SizedBox(width: 8),
                 Text(
-                  'No reviews yet',
+                  l10n?.noReviewsYet ?? 'No reviews yet',
                   style: GoogleFonts.sora(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -57,7 +60,7 @@ class RatingBreakdown extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Ratings and reviews will appear here once this worker completes dispatches.',
+              l10n?.noReviewsSubtext ?? 'Complete jobs to receive ratings and reviews from employers.',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 color: AppColors.inkMuted,

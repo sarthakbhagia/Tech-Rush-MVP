@@ -7,7 +7,11 @@ import '../../core/theme.dart';
 import '../../core/spacing.dart';
 import '../../models/job.dart';
 import '../../providers/search_provider.dart';
+import '../../providers/job_provider.dart';
 import '../../widgets/service_card.dart';
+import '../../widgets/skeleton_service_card.dart';
+import '../../widgets/empty_state.dart';
+import '../../l10n/app_localizations.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   final String initialQuery;
@@ -79,22 +83,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     _focusNode.requestFocus();
   }
 
-  List<Job> get _filteredJobs {
-    if (_query.trim().isEmpty) return [];
-    final q = _query.trim().toLowerCase();
-    return mockJobs.where((job) {
-      final titleMatch = job.title.toLowerCase().contains(q);
-      final categoryMatch = job.category.toLowerCase().contains(q);
-      final descMatch = job.description.toLowerCase().contains(q);
-      final locationMatch = job.location.toLowerCase().contains(q);
-      return titleMatch || categoryMatch || descMatch || locationMatch;
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final recentSearches = ref.watch(recentSearchesProvider);
-    final results = _filteredJobs;
     final isQueryEmpty = _query.trim().isEmpty;
 
     return Scaffold(
@@ -104,7 +96,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.inkPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          },
         ),
         titleSpacing: 0,
         title: Padding(
@@ -122,7 +120,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 fontWeight: FontWeight.w500,
               ),
               decoration: InputDecoration(
-                hintText: 'Search "House Painting", "Plumbing"...',
+                hintText: l10n.dashboardEmployerSearchPlaceholder,
                 hintStyle: GoogleFonts.inter(
                   fontSize: 13,
                   color: AppColors.inkMuted,
@@ -164,9 +162,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       body: isQueryEmpty
           ? _buildRecentSearches(recentSearches)
-          : (results.isEmpty
-              ? _buildEmptyState()
-              : _buildResultsList(results)),
+          : ref.watch(searchJobsProvider(_query)).when(
+                data: (results) {
+                  if (results.isEmpty) {
+                    return _buildEmptyState();
+                  }
+                  return _buildResultsList(results);
+                },
+                loading: () => Padding(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  child: SkeletonList(count: 3),
+                ),
+                error: (err, stack) => _buildEmptyState(),
+              ),
     );
   }
 

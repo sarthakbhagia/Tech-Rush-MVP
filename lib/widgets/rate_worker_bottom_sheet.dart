@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
 import '../providers/review_provider.dart';
+import '../l10n/app_localizations.dart';
 
 void openRateWorkerBottomSheet(
   BuildContext context,

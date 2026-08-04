@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../l10n/app_localizations.dart';
 
 class TrustBadgeItem {
   final IconData icon;
@@ -20,23 +21,24 @@ class TrustBadgeRow extends StatelessWidget {
     this.badgesOverride,
   });
 
-  static const List<TrustBadgeItem> defaultBadges = [
-    TrustBadgeItem(
-      icon: Icons.fingerprint_rounded,
-      label: 'Aadhaar Verified',
-    ),
-    TrustBadgeItem(
-      icon: Icons.verified_user_rounded,
-      label: 'Background Checked',
-    ),
-    TrustBadgeItem(
-      icon: Icons.workspace_premium_rounded,
-      label: 'Skill Certified',
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final defaultBadges = [
+      TrustBadgeItem(
+        icon: Icons.fingerprint_rounded,
+        label: l10n?.trustAadhaar ?? 'Aadhaar Verified',
+      ),
+      TrustBadgeItem(
+        icon: Icons.verified_user_rounded,
+        label: l10n?.trustBackground ?? 'Background Checked',
+      ),
+      TrustBadgeItem(
+        icon: Icons.workspace_premium_rounded,
+        label: l10n?.trustSkill ?? 'Skill Certified',
+      ),
+    ];
+
     final badges = badgesOverride ?? defaultBadges;
 
     return Wrap(

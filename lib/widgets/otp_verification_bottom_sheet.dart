@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../core/utils/formatters.dart';
 import '../providers/user_provider.dart';
 import 'app_bottom_sheet.dart';
 
@@ -95,7 +97,9 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
     });
   }
 
-  String get _otpToken => _controllers.map((c) => c.text).join();
+  String get _otpToken => Formatters.toWesternDigits(
+        _controllers.map((c) => c.text).join(),
+      );
 
   Future<void> _verifyOtp() async {
     final token = _otpToken.trim();
@@ -237,6 +241,9 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
                 controller: _controllers[index],
                 focusNode: _focusNodes[index],
                 keyboardType: TextInputType.number,
+                inputFormatters: const [
+                  WesternDigitsTextInputFormatter(),
+                ],
                 textAlign: TextAlign.center,
                 maxLength: 1,
                 style: GoogleFonts.spaceMono(

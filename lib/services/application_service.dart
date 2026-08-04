@@ -37,9 +37,12 @@ class ApplicationService {
     }
 
     try {
+      final user = _client.auth.currentUser;
+      final effectiveWorkerId = (user != null && _uuidRegExp.hasMatch(user.id)) ? user.id : workerId;
+
       final payload = {
         'job_id': jobId,
-        'worker_id': workerId,
+        'worker_id': effectiveWorkerId,
         'worker_name': workerName,
         'worker_phone': workerPhone,
         'status': 'interested',
@@ -49,7 +52,7 @@ class ApplicationService {
       final res =
           await _client.from('applications').insert(payload).select().single();
       if (kDebugMode) {
-        print('✅ [ApplicationService] Applied to job $jobId as worker $workerId');
+        print('✅ [ApplicationService] Applied to job $jobId as worker $effectiveWorkerId');
       }
       return Application.fromJson(res);
     } catch (e) {

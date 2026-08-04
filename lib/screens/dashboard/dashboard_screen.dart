@@ -15,8 +15,12 @@ import '../../providers/filter_provider.dart';
 import '../../providers/notification_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../providers/job_provider.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
+import '../../models/job_category.dart';
 import '../../widgets/address_bottom_sheet.dart';
 import '../../widgets/post_job_bottom_sheet.dart';
+import '../../widgets/empty_state.dart';
 
 enum DashboardRole { employer, worker }
 
@@ -35,6 +39,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     _simulateLoading();
+    // Sync UI role state from persisted profile role
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profileRole = ref.read(userProfileProvider).role;
+      if (profileRole == 'worker' && _role == DashboardRole.employer) {
+        setState(() => _role = DashboardRole.worker);
+      } else if (profileRole == 'employer' && _role == DashboardRole.worker) {
+        setState(() => _role = DashboardRole.employer);
+      }
+    });
   }
 
   void _simulateLoading() {
@@ -47,17 +60,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _toggleRole() {
+    final nextRole = _role == DashboardRole.employer
+        ? DashboardRole.worker
+        : DashboardRole.employer;
+
     setState(() {
-      _role = _role == DashboardRole.employer
-          ? DashboardRole.worker
-          : DashboardRole.employer;
+      _role = nextRole;
     });
+
+    ref.read(userProfileProvider.notifier).updateRole(
+          nextRole == DashboardRole.employer ? 'employer' : 'worker',
+        );
+
     _simulateLoading();
   }
 
   @override
   Widget build(BuildContext context) {
     final isEmployer = _role == DashboardRole.employer;
+    final l10n = AppLocalizations.of(context)!;
+    final currentLocale = ref.watch(localeProvider);
+    final userProfile = ref.watch(userProfileProvider);
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -155,9 +178,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       ],
                                     ),
                                     Text(
-                                      isEmployer
-                                          ? ref.watch(userProfileProvider).name
-                                          : 'Ramesh Kumar (Pro)',
+                                      userProfile.name.isNotEmpty
+                                          ? userProfile.name
+                                          : (isEmployer ? 'Sharma Household' : 'Rajesh Kumar'),
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         color: Colors.white.withValues(alpha: 0.9),
@@ -171,9 +194,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                           ),
 
-                          // Right Actions: Mode Switcher & Notification Bell
+                          // Right Actions: Language Switcher, Mode Switcher & Notification Bell
                           Row(
                             children: [
+                              GestureDetector(
+                                onTap: () => ref.read(localeProvider.notifier).toggleLocale(),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    borderRadius: AppRadii.pill,
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    currentLocale.languageCode == 'en' ? 'हिं' : 'EN',
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
                               GestureDetector(
                                 onTap: _toggleRole,
                                 child: Container(
@@ -189,7 +237,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     ),
                                   ),
                                   child: Text(
-                                    isEmployer ? 'EMPLOYER' : 'WORKER',
+                                    isEmployer ? l10n.roleEmployer : l10n.roleWorker,
                                     style: GoogleFonts.spaceMono(
                                       fontSize: 9.5,
                                       fontWeight: FontWeight.bold,
@@ -198,7 +246,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 5),
                               GestureDetector(
                                 onTap: () => context.push('/notifications'),
                                 child: Stack(
@@ -251,11 +299,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(height: AppSpacing.lg),
 
-                      // Hero Headline (Option 2 for Employer, Option 3 for Worker)
+                      // Hero Headline
                       Text(
                         isEmployer
-                            ? 'What daily service do you need done today?'
-                            : 'Active Job Ledger & Direct Hires',
+                            ? l10n.dashboardEmployerHeadline
+                            : l10n.dashboardWorkerHeadline,
                         style: GoogleFonts.sora(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
@@ -266,8 +314,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       const SizedBox(height: 4),
                       Text(
                         isEmployer
-                            ? 'Connect with 1,200+ local daily-wage specialists'
-                            : 'Set your rate and view nearby daily postings',
+                            ? l10n.dashboardEmployerSubhead
+                            : l10n.dashboardWorkerSubhead,
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.white.withValues(alpha: 0.9),
@@ -303,8 +351,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               Expanded(
                                 child: Text(
                                   isEmployer
-                                      ? 'Search "House Painting", "Plumbing"...'
-                                      : 'Search jobs near Indiranagar...',
+                                      ? l10n.dashboardEmployerSearchPlaceholder
+                                      : l10n.dashboardWorkerSearchPlaceholder,
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     color: AppColors.inkMuted,
@@ -393,8 +441,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 children: [
                                   Text(
                                     isEmployer
-                                        ? '100% Aadhaar Verified Daily Pros'
-                                        : 'Guaranteed Same-Day UPI Payout',
+                                        ? l10n.dashboardEmployerBannerTitle
+                                        : l10n.dashboardWorkerBannerTitle,
                                     style: GoogleFonts.sora(
                                       fontSize: 13,
                                       fontWeight: FontWeight.bold,
@@ -404,8 +452,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   const SizedBox(height: 2),
                                   Text(
                                     isEmployer
-                                        ? 'Book verified daily workers with instant response'
-                                        : 'Direct connection with verified local households',
+                                        ? l10n.dashboardEmployerBannerSubhead
+                                        : l10n.dashboardWorkerBannerSubhead,
                                     style: GoogleFonts.inter(
                                       fontSize: 11,
                                       color: Colors.white.withValues(alpha: 0.85),
@@ -436,8 +484,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           Expanded(
                             child: Text(
                               isEmployer
-                                  ? 'POST A NEW JOB BY CATEGORY'
-                                  : 'AVAILABLE WORK CATEGORIES',
+                                  ? l10n.postNewJobByCategory
+                                  : l10n.availableWorkCategories,
                               style: GoogleFonts.spaceMono(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -460,7 +508,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   border: Border.all(color: AppColors.brand),
                                 ),
                                 child: Text(
-                                  '+ Post Job',
+                                  l10n.postJobCta,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
@@ -471,7 +519,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             )
                           else
                             Text(
-                              '6 Categories',
+                              l10n.categoriesCount,
                               style: GoogleFonts.spaceMono(
                                 fontSize: 10,
                                 color: AppColors.inkMuted,
@@ -491,59 +539,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         mainAxisSpacing: 14,
                         crossAxisSpacing: 14,
                         childAspectRatio: 0.95,
-                        children: [
-                          CategoryTile(
-                            icon: Icons.format_paint_rounded,
-                            label: 'Painting',
-                            badgeText: 'HIGH DEMAND',
-                            badgeColor: AppColors.brand,
-                            badgeBg: const Color(0xFFFFF7ED),
+                        children: AppCategories.all.map((cat) {
+                          return CategoryTile(
+                            icon: cat.icon,
+                            label: cat.getLocalizedName(l10n),
+                            badgeText: cat.getLocalizedBadge(l10n),
+                            badgeColor: cat.badgeColor ?? AppColors.brand,
+                            badgeBg: cat.badgeBg ?? const Color(0xFFFFF7ED),
                             onTap: () => isEmployer
-                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Painting')
-                                : context.push('/listings?category=Painting'),
-                          ),
-                          CategoryTile(
-                            icon: Icons.cleaning_services_rounded,
-                            label: 'Cleaning',
-                            badgeText: 'POPULAR',
-                            badgeColor: const Color(0xFF2563EB),
-                            badgeBg: const Color(0xFFEFF6FF),
-                            onTap: () => isEmployer
-                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Cleaning')
-                                : context.push('/listings?category=Cleaning'),
-                          ),
-                          CategoryTile(
-                            icon: Icons.plumbing_rounded,
-                            label: 'Plumbing',
-                            badgeText: 'URGENT',
-                            badgeColor: AppColors.danger,
-                            badgeBg: const Color(0xFFFEF2F2),
-                            onTap: () => isEmployer
-                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Plumbing')
-                                : context.push('/listings?category=Plumbing'),
-                          ),
-                          CategoryTile(
-                            icon: Icons.soup_kitchen_rounded,
-                            label: 'Cooking',
-                            onTap: () => isEmployer
-                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Cooking')
-                                : context.push('/listings?category=Cooking'),
-                          ),
-                          CategoryTile(
-                            icon: Icons.grass_rounded,
-                            label: 'Gardening',
-                            onTap: () => isEmployer
-                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Gardening')
-                                : context.push('/listings?category=Gardening'),
-                          ),
-                          CategoryTile(
-                            icon: Icons.electric_bolt_rounded,
-                            label: 'Electrical',
-                            onTap: () => isEmployer
-                                ? openPostJobBottomSheet(context, ref, initialCategory: 'Electrical')
-                                : context.push('/listings?category=Electrical'),
-                          ),
-                        ],
+                                ? openPostJobBottomSheet(context, ref, initialCategory: cat.id)
+                                : context.push('/listings?category=${cat.id}'),
+                          );
+                        }).toList(),
                       ),
                       const SizedBox(height: AppSpacing.xxl + 8),
 
@@ -566,8 +573,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 Expanded(
                                   child: Text(
                                     isEmployer
-                                        ? 'Active Dispatch Operations'
-                                        : 'Daily Availability Status',
+                                        ? l10n.headerActiveDispatchOps
+                                        : l10n.headerDailyAvailStatus,
                                     style: GoogleFonts.sora(
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
@@ -581,16 +588,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 StatusChip(
                                   status: StatusChipType.open,
                                   labelOverride: isEmployer
-                                      ? 'POSTINGS ACTIVE'
-                                      : 'AVAILABLE',
+                                      ? l10n.statusPostingsActive
+                                      : l10n.statusAvailable,
                                 ),
                               ],
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             Text(
                               isEmployer
-                                  ? 'Open postings receiving applicant bids. Next dispatch scheduled for 09:00 AM tomorrow.'
-                                  : 'Your profile is active in local dispatch pool. Employers nearby can view your skill certifications and call directly.',
+                                  ? l10n.subtextActiveDispatchOps
+                                  : l10n.subtextDailyAvailStatus,
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AppColors.inkMuted,
@@ -604,8 +611,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
                       Text(
                         isEmployer
-                            ? 'DISPATCH & METRICS OVERVIEW'
-                            : 'MY WORK PARAMETERS',
+                            ? l10n.headerDispatchMetricsOverview
+                            : l10n.headerMyWorkParameters,
                         style: GoogleFonts.spaceMono(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
@@ -623,74 +630,74 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         crossAxisSpacing: AppSpacing.md,
                         childAspectRatio: 1.35,
                         children: isEmployer
-                            ? const [
+                            ? [
                                 _StatTile(
                                   icon: Icons.work_outline_rounded,
-                                  iconBg: Color(0xFFFFF7ED),
+                                  iconBg: const Color(0xFFFFF7ED),
                                   iconColor: AppColors.brand,
-                                  title: 'Active Postings',
+                                  title: l10n.statActivePostings,
                                   value: '2',
-                                  subtext: '1 Painting, 1 Plumbing',
+                                  subtext: l10n.statActivePostingsSubtext,
                                 ),
                                 _StatTile(
                                   icon: Icons.people_outline_rounded,
-                                  iconBg: Color(0xFFEFF6FF),
-                                  iconColor: Color(0xFF2563EB),
-                                  title: 'Applications',
+                                  iconBg: const Color(0xFFEFF6FF),
+                                  iconColor: const Color(0xFF2563EB),
+                                  title: l10n.statApplications,
                                   value: '7',
-                                  subtext: '4 Verified Workers',
+                                  subtext: l10n.statApplicationsSubtext,
                                 ),
                                 _StatTile(
                                   icon: Icons.task_alt_rounded,
-                                  iconBg: Color(0xFFECFDF5),
+                                  iconBg: const Color(0xFFECFDF5),
                                   iconColor: AppColors.success,
-                                  title: 'Total Dispatches',
+                                  title: l10n.statTotalDispatches,
                                   value: '14',
-                                  subtext: 'Completed Jobs',
+                                  subtext: l10n.statTotalDispatchesSubtext,
                                 ),
                                 _StatTile(
                                   icon: Icons.currency_rupee_rounded,
-                                  iconBg: Color(0xFFFEF3C7),
+                                  iconBg: const Color(0xFFFEF3C7),
                                   iconColor: AppColors.brand,
-                                  title: 'Avg Daily Payout',
+                                  title: l10n.statAvgDailyPayout,
                                   value: '₹750',
-                                  subtext: 'Per Worker',
+                                  subtext: l10n.statAvgDailyPayoutSubtext,
                                   highlightValue: true,
                                 ),
                               ]
-                            : const [
+                            : [
                                 _StatTile(
                                   icon: Icons.currency_rupee_rounded,
-                                  iconBg: Color(0xFFFEF3C7),
+                                  iconBg: const Color(0xFFFEF3C7),
                                   iconColor: AppColors.brand,
-                                  title: 'Daily Wage Rate',
+                                  title: l10n.statDailyWageRate,
                                   value: '₹650/day',
-                                  subtext: 'Set by Ramesh',
+                                  subtext: l10n.statSetByEmployer,
                                   highlightValue: true,
                                 ),
                                 _StatTile(
                                   icon: Icons.star_rounded,
-                                  iconBg: Color(0xFFFFFBEB),
+                                  iconBg: const Color(0xFFFFFBEB),
                                   iconColor: AppColors.warning,
-                                  title: 'Rating Score',
+                                  title: l10n.statRatingScore,
                                   value: '4.8 ★',
-                                  subtext: '24 Reviews',
+                                  subtext: l10n.stat24Reviews,
                                 ),
                                 _StatTile(
                                   icon: Icons.task_alt_rounded,
-                                  iconBg: Color(0xFFECFDF5),
+                                  iconBg: const Color(0xFFECFDF5),
                                   iconColor: AppColors.success,
-                                  title: 'Jobs Completed',
+                                  title: l10n.statJobsCompleted,
                                   value: '32',
-                                  subtext: '100% On-Time',
+                                  subtext: l10n.statOnTime,
                                 ),
                                 _StatTile(
                                   icon: Icons.send_rounded,
-                                  iconBg: Color(0xFFEFF6FF),
-                                  iconColor: Color(0xFF2563EB),
-                                  title: 'Applications Sent',
+                                  iconBg: const Color(0xFFEFF6FF),
+                                  iconColor: const Color(0xFF2563EB),
+                                  title: l10n.statApplicationsSent,
                                   value: '3',
-                                  subtext: 'Pending Review',
+                                  subtext: l10n.statPendingReview,
                                 ),
                               ],
                       ),
@@ -703,8 +710,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           Expanded(
                             child: Text(
                               isEmployer
-                                  ? 'RECENT DISPATCH LEDGER'
-                                  : 'RECOMMENDED JOBS NEARBY',
+                                  ? l10n.headerRecentDispatchLedger
+                                  : l10n.headerRecommendedJobsNearby,
                               style: GoogleFonts.spaceMono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w500,
@@ -719,7 +726,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           GestureDetector(
                             onTap: () => context.push('/listings'),
                             child: Text(
-                              'View All ->',
+                              l10n.linkViewAll,
                               style: GoogleFonts.spaceMono(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
@@ -734,16 +741,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ref.watch(jobsByCategoryProvider('All')).when(
                             data: (jobs) {
                               if (jobs.isEmpty) {
-                                return Center(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(AppSpacing.lg),
-                                    child: Text(
-                                      'No jobs posted yet. Tap "+ Post Job" to publish a new dispatch!',
-                                      style: GoogleFonts.inter(
-                                          fontSize: 12, color: AppColors.inkMuted),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
+                                return const EmptyState(
+                                  icon: Icons.work_outline_rounded,
+                                  title: 'No Active Job Postings',
+                                  description: 'Be the first to publish a new job posting on KaamSetu.',
                                 );
                               }
                               return Column(
@@ -762,12 +763,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               );
                             },
                             loading: () => const SkeletonList(count: 3),
-                            error: (err, stack) => Center(
-                              child: Text(
-                                'Error loading jobs: $err',
-                                style: GoogleFonts.inter(
-                                    fontSize: 12, color: AppColors.danger),
-                              ),
+                            error: (err, stack) => const EmptyState(
+                              icon: Icons.work_outline_rounded,
+                              title: 'No Active Job Postings',
+                              description: 'Be the first to publish a new job posting on KaamSetu.',
                             ),
                           ),
                       const SizedBox(height: AppSpacing.xxl),

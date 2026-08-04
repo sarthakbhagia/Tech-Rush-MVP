@@ -5,9 +5,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme.dart';
 import '../../core/spacing.dart';
+import '../../core/utils/formatters.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/otp_verification_bottom_sheet.dart';
 import '../../providers/user_provider.dart';
+import '../../providers/locale_provider.dart';
+import '../../l10n/app_localizations.dart';
 
 enum AuthMethod { email, phone }
 
@@ -53,14 +56,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     final phone = _phoneController.text.trim();
 
     if (name.isEmpty) {
-      setState(() => _errorMessage = 'Please enter your full name or household name');
+      setState(() => _errorMessage = 'Please enter your full name');
       return;
     }
-    if (street.isEmpty || locality.isEmpty) {
-      setState(() => _errorMessage = 'Please enter street and locality address');
-      return;
-    }
-
     if (_method == AuthMethod.email) {
       if (email.isEmpty || !email.contains('@')) {
         setState(() => _errorMessage = 'Please enter a valid email address');
@@ -118,7 +116,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Mobile OTP send failed: ${e.toString()}';
+        _errorMessage = 'Sign up failed: ${e.toString()}';
         _isLoading = false;
       });
     }
@@ -126,6 +124,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final currentLocale = ref.watch(localeProvider);
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
@@ -133,8 +134,32 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
           padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             children: [
-              const SizedBox(height: AppSpacing.md),
-              const Logo(size: 28, showSubtitle: true),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 40),
+                  const Logo(size: 28, showSubtitle: true),
+                  GestureDetector(
+                    onTap: () => ref.read(localeProvider.notifier).toggleLocale(),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceRaised,
+                        borderRadius: AppRadii.pill,
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Text(
+                        currentLocale.languageCode == 'en' ? 'हिं' : 'EN',
+                        style: GoogleFonts.spaceMono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.brand,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: AppSpacing.xl),
 
               // Main Signup Card
@@ -150,7 +175,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Create Your Account',
+                      l10n.authCreateAccount,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.sora(
                         fontSize: 18,
@@ -307,7 +332,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'EMAIL AUTH',
+                                  l10n.authEmailAuth,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 11,
                                     fontWeight: _method == AuthMethod.email
@@ -340,7 +365,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
-                                  'MOBILE OTP',
+                                  l10n.authMobileOtp,
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 11,
                                     fontWeight: _method == AuthMethod.phone
@@ -439,6 +464,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                             child: TextField(
                               controller: _phoneController,
                               keyboardType: TextInputType.phone,
+                              inputFormatters: const [
+                                WesternDigitsTextInputFormatter(),
+                              ],
                               maxLength: 10,
                               style: GoogleFonts.spaceMono(fontSize: 14, color: AppColors.inkPrimary),
                               decoration: const InputDecoration(

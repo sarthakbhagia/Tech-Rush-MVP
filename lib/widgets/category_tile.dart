@@ -59,12 +59,13 @@ class CategoryTile extends StatelessWidget {
                 Text(
                   label,
                   style: GoogleFonts.sora(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     color: AppColors.inkPrimary,
+                    height: 1.1,
                   ),
                   textAlign: TextAlign.center,
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],

@@ -72,7 +72,6 @@ class Job {
       'rating': rating,
       'review_count': reviewCount,
       'location': location,
-      'date': date,
       'employer_name': employerName,
       if (workerName != null) 'worker_name': workerName,
       if (imageUrl != null) 'image_url': imageUrl,

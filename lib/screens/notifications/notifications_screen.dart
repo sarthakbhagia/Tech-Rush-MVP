@@ -7,6 +7,7 @@ import '../../core/spacing.dart';
 import '../../models/notification_item.dart';
 import '../../providers/notification_provider.dart';
 import '../../widgets/empty_state.dart';
+import '../../l10n/app_localizations.dart';
 
 class NotificationsScreen extends ConsumerWidget {
   const NotificationsScreen({super.key});
@@ -35,6 +36,7 @@ class NotificationsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final notifications = ref.watch(notificationProvider);
     final unreadCount = ref.watch(unreadNotificationCountProvider);
     final notifier = ref.read(notificationProvider.notifier);
@@ -46,12 +48,18 @@ class NotificationsScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded, color: AppColors.inkPrimary),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/dashboard');
+            }
+          },
         ),
         title: Row(
           children: [
             Text(
-              'Notifications',
+              l10n.notificationsTitle,
               style: GoogleFonts.sora(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -68,7 +76,7 @@ class NotificationsScreen extends ConsumerWidget {
                   border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  '$unreadCount New',
+                  '$unreadCount',
                   style: GoogleFonts.spaceMono(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
@@ -84,7 +92,7 @@ class NotificationsScreen extends ConsumerWidget {
             TextButton(
               onPressed: () => notifier.markAllAsRead(),
               child: Text(
-                'Mark all read',
+                l10n.markAllAsRead,
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

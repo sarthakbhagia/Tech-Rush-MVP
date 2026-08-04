@@ -6,11 +6,14 @@ import '../core/spacing.dart';
 import '../providers/filter_provider.dart';
 import 'app_bottom_sheet.dart';
 import 'sticky_bottom_bar.dart';
+import '../l10n/app_localizations.dart';
+import '../models/job_category.dart';
 
 void openFilterBottomSheet(BuildContext context, WidgetRef ref) {
+  final l10n = AppLocalizations.of(context);
   showAppBottomSheet(
     context: context,
-    title: 'Filter Dispatches',
+    title: l10n?.filterSheetTitle ?? 'Filter & Sort Jobs',
     child: _FilterBottomSheetContent(ref: ref),
   );
 }
@@ -30,22 +33,30 @@ class __FilterBottomSheetContentState
   late RangeValues _tempPriceRange;
   late String _tempSortBy;
 
-  static const List<String> _allCategories = [
-    'Painting',
-    'Cleaning',
-    'Plumbing',
-    'Cooking',
-    'Gardening',
-    'Electrical',
-  ];
+  List<String> get _allCategories => AppCategories.categoryIds;
 
-  static const Map<String, String> _sortOptions = {
-    'most_recent': 'Most Recent',
-    'price_low': 'Price: Low to High',
-    'price_high': 'Price: High to Low',
-    'rating': 'Top Rated',
-    'urgency': 'Urgent First',
-  };
+  String _getCategoryName(BuildContext context, String cat) {
+    return AppCategories.getLocalizedName(context, cat);
+  }
+
+  String _getSortOptionLabel(BuildContext context, String key) {
+    final l10n = AppLocalizations.of(context);
+    if (l10n == null) return key;
+    switch (key) {
+      case 'most_recent':
+        return l10n.sortMostRecent;
+      case 'price_low':
+        return l10n.sortPriceLow;
+      case 'price_high':
+        return l10n.sortPriceHigh;
+      case 'rating':
+        return l10n.sortRating;
+      case 'urgency':
+        return l10n.sortUrgency;
+      default:
+        return key;
+    }
+  }
 
   @override
   void initState() {
@@ -74,6 +85,9 @@ class __FilterBottomSheetContentState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    const sortKeys = ['most_recent', 'price_low', 'price_high', 'rating', 'urgency'];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -83,7 +97,7 @@ class __FilterBottomSheetContentState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Filter Criteria',
+              l10n?.filterSheetTitle ?? 'Filter Criteria',
               style: GoogleFonts.spaceMono(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
@@ -94,7 +108,7 @@ class __FilterBottomSheetContentState
             GestureDetector(
               onTap: _resetTempFilters,
               child: Text(
-                'Reset All',
+                l10n?.resetFilters ?? 'Reset All',
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
@@ -108,7 +122,7 @@ class __FilterBottomSheetContentState
 
         // 1. Category Section (Multi-Select Chips)
         Text(
-          'Categories (Multi-Select)',
+          l10n?.categoriesLabel ?? 'Categories',
           style: GoogleFonts.sora(
             fontSize: 13,
             fontWeight: FontWeight.bold,
@@ -123,7 +137,7 @@ class __FilterBottomSheetContentState
             final isSelected = _tempCategories.contains(cat);
             return FilterChip(
               label: Text(
-                cat,
+                _getCategoryName(context, cat),
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
@@ -161,7 +175,7 @@ class __FilterBottomSheetContentState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Daily Wage Range',
+              l10n?.priceRangeLabel ?? 'Daily Wage Range',
               style: GoogleFonts.sora(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
@@ -200,7 +214,7 @@ class __FilterBottomSheetContentState
 
         // 3. Sort By Section
         Text(
-          'Sort By',
+          l10n?.sortByLabel ?? 'Sort By',
           style: GoogleFonts.sora(
             fontSize: 13,
             fontWeight: FontWeight.bold,
@@ -211,11 +225,11 @@ class __FilterBottomSheetContentState
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: _sortOptions.entries.map((entry) {
-            final isSelected = _tempSortBy == entry.key;
+          children: sortKeys.map((key) {
+            final isSelected = _tempSortBy == key;
             return ChoiceChip(
               label: Text(
-                entry.value,
+                _getSortOptionLabel(context, key),
                 style: GoogleFonts.inter(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
@@ -226,7 +240,7 @@ class __FilterBottomSheetContentState
               onSelected: (selected) {
                 if (selected) {
                   setState(() {
-                    _tempSortBy = entry.key;
+                    _tempSortBy = key;
                   });
                 }
               },
@@ -247,9 +261,9 @@ class __FilterBottomSheetContentState
 
         // 4. Apply Filters Sticky Bottom Bar CTA
         StickyBottomBar(
-          label: 'TOTAL FILTERS',
+          label: 'FILTERS',
           price: '${_tempCategories.length + (_tempPriceRange != const RangeValues(500, 3000) ? 1 : 0) + (_tempSortBy != "most_recent" ? 1 : 0)} Active',
-          ctaLabel: 'Apply Filters',
+          ctaLabel: l10n?.applyFiltersCta ?? 'APPLY FILTERS',
           onCta: _applyFilters,
         ),
       ],
