@@ -141,6 +141,7 @@ void main() {
       applicationId: appliedApp?.id ?? 'app-1',
       jobId: jobId,
       workerName: 'Rajesh Kumar (Worker)',
+      workerId: appliedApp?.workerId ?? 'worker-test-1',
       status: 'assigned',
     );
 

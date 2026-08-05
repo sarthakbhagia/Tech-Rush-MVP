@@ -1,35 +1,44 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/notification_item.dart';
+import '../services/notification_service.dart';
 
-class NotificationNotifier extends StateNotifier<List<NotificationItem>> {
-  NotificationNotifier() : super(mockNotifications);
+final _notificationService = NotificationService();
 
-  int get unreadCount => state.where((item) => !item.isRead).length;
+/// Resolves the current authenticated user's ID, or empty string if not logged in.
+String _currentUserId() =>
+    Supabase.instance.client.auth.currentUser?.id ?? '';
 
-  void markAsRead(String id) {
-    state = [
-      for (final item in state)
-        if (item.id == id) item.copyWith(isRead: true) else item,
-    ];
-  }
+// ── Read Providers ────────────────────────────────────────────────────────
 
-  void markAllAsRead() {
-    state = [
-      for (final item in state) item.copyWith(isRead: true),
-    ];
-  }
+/// Fetches all notifications for the current user, ordered newest-first.
+/// Watch this in the notifications screen and the bell badge.
+final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) async {
+  final userId = _currentUserId();
+  if (userId.isEmpty) return [];
+  return _notificationService.fetchNotifications(userId);
+});
 
-  void clearAll() {
-    state = [];
-  }
+/// Real unread count from Supabase (used for the bell badge in the app bar).
+final unreadNotificationCountProvider = FutureProvider<int>((ref) async {
+  // Derive from notificationsProvider so both stay in sync without extra query.
+  final notifs = await ref.watch(notificationsProvider.future);
+  return notifs.where((n) => !n.isRead).length;
+});
+
+// ── Write Actions ─────────────────────────────────────────────────────────
+
+/// Marks one notification as read, then invalidates the list provider
+/// so the bell badge and list both update.
+Future<void> markNotificationRead(WidgetRef ref, String notificationId) async {
+  await _notificationService.markAsRead(notificationId);
+  ref.invalidate(notificationsProvider);
 }
 
-final notificationProvider =
-    StateNotifierProvider<NotificationNotifier, List<NotificationItem>>((ref) {
-  return NotificationNotifier();
-});
-
-final unreadNotificationCountProvider = Provider<int>((ref) {
-  final notifications = ref.watch(notificationProvider);
-  return notifications.where((n) => !n.isRead).length;
-});
+/// Marks all notifications read, then invalidates.
+Future<void> markAllNotificationsRead(WidgetRef ref) async {
+  final userId = _currentUserId();
+  if (userId.isEmpty) return;
+  await _notificationService.markAllAsRead(userId);
+  ref.invalidate(notificationsProvider);
+}

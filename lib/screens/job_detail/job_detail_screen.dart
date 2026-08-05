@@ -97,6 +97,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           applicationId: app.id,
           jobId: job.id,
           workerName: app.workerName,
+          workerId: app.workerId,
           status: 'assigned',
         );
 

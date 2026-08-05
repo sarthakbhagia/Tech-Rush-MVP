@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/review.dart';
 import 'supabase_service.dart';
+import 'notification_service.dart';
 
 class ReviewService {
   final SupabaseClient _client = SupabaseService().client;
+  final NotificationService _notif = NotificationService();
   static final List<Review> _localReviewsStore = [];
   static final RegExp _uuidRegExp = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -50,10 +52,22 @@ class ReviewService {
       };
 
       final res = await _client.from('reviews').insert(payload).select().single();
+      final review = Review.fromJson(res);
       if (kDebugMode) {
         print('✅ [ReviewService] Submitted review for worker $workerId: ${res['id']}');
       }
-      return Review.fromJson(res);
+
+      // ── Notify worker ────────────────────────────────────────────────────
+      final stars = rating.clamp(1, 5);
+      unawaited(_notif.insertNotification(
+        userId: workerId,
+        type: 'review_received',
+        title: 'You Received a New Review ⭐',
+        body: 'An employer rated you $stars star${stars == 1 ? '' : 's'}${comment != null && comment.trim().isNotEmpty ? ': "${comment.trim()}"' : '.'}',
+        relatedJobId: jobId,
+      ));
+
+      return review;
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [ReviewService] Error submitting review (using local store): $e');
@@ -127,3 +141,6 @@ class ReviewService {
     return _localReviewsStore.where((r) => r.workerId == workerId).toList();
   }
 }
+
+/// Fire-and-forget helper.
+void unawaited(Future<void> future) {}

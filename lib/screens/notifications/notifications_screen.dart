@@ -14,8 +14,16 @@ class NotificationsScreen extends ConsumerWidget {
 
   IconData _getTypeIcon(NotificationType type) {
     switch (type) {
-      case NotificationType.job:
-        return Icons.work_rounded;
+      case NotificationType.applicationReceived:
+        return Icons.person_add_rounded;
+      case NotificationType.jobAccepted:
+        return Icons.check_circle_rounded;
+      case NotificationType.jobCompleted:
+        return Icons.task_alt_rounded;
+      case NotificationType.reviewReceived:
+        return Icons.star_rounded;
+      case NotificationType.rateWorker:
+        return Icons.rate_review_rounded;
       case NotificationType.payment:
         return Icons.account_balance_wallet_rounded;
       case NotificationType.system:
@@ -25,8 +33,16 @@ class NotificationsScreen extends ConsumerWidget {
 
   Color _getTypeColor(NotificationType type) {
     switch (type) {
-      case NotificationType.job:
+      case NotificationType.applicationReceived:
         return AppColors.brand;
+      case NotificationType.jobAccepted:
+        return AppColors.success;
+      case NotificationType.jobCompleted:
+        return AppColors.success;
+      case NotificationType.reviewReceived:
+        return AppColors.warning;
+      case NotificationType.rateWorker:
+        return AppColors.warning;
       case NotificationType.payment:
         return AppColors.success;
       case NotificationType.system:
@@ -37,9 +53,9 @@ class NotificationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final notifications = ref.watch(notificationProvider);
-    final unreadCount = ref.watch(unreadNotificationCountProvider);
-    final notifier = ref.read(notificationProvider.notifier);
+    final notifsAsync = ref.watch(notificationsProvider);
+    final unreadCountAsync = ref.watch(unreadNotificationCountProvider);
+    final unreadCount = unreadCountAsync.valueOrNull ?? 0;
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -69,11 +85,13 @@ class NotificationsScreen extends ConsumerWidget {
             if (unreadCount > 0) ...[
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.brandSubtle,
                   borderRadius: AppRadii.pill,
-                  border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                  border:
+                      Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   '$unreadCount',
@@ -88,9 +106,9 @@ class NotificationsScreen extends ConsumerWidget {
           ],
         ),
         actions: [
-          if (notifications.isNotEmpty && unreadCount > 0)
+          if (unreadCount > 0)
             TextButton(
-              onPressed: () => notifier.markAllAsRead(),
+              onPressed: () => markAllNotificationsRead(ref),
               child: Text(
                 l10n.markAllAsRead,
                 style: GoogleFonts.inter(
@@ -103,42 +121,68 @@ class NotificationsScreen extends ConsumerWidget {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: AppColors.border,
-            height: 1.0,
-          ),
+          child: Container(color: AppColors.border, height: 1.0),
         ),
       ),
-      body: notifications.isEmpty
-          ? Center(
+      body: notifsAsync.when(
+        loading: () => _buildLoadingSkeleton(),
+        error: (e, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.xl),
+            child: Text(
+              'Could not load notifications.\n$e',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                  fontSize: 13, color: AppColors.inkMuted),
+            ),
+          ),
+        ),
+        data: (notifications) {
+          if (notifications.isEmpty) {
+            return Center(
               child: EmptyState(
                 icon: Icons.notifications_off_rounded,
                 title: 'No Notifications Yet',
-                description: 'We will notify you when job applications, wage payments, or system status updates occur.',
+                description:
+                    'We will notify you when job applications, wage payments, or status updates occur.',
                 actionLabel: 'Back to Dashboard',
                 onAction: () => context.pop(),
               ),
-            )
-          : ListView.separated(
+            );
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(notificationsProvider),
+            backgroundColor: AppColors.surface,
+            color: AppColors.brand,
+            child: ListView.separated(
               padding: const EdgeInsets.all(AppSpacing.md),
-              physics: const BouncingScrollPhysics(),
+              physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics()),
               itemCount: notifications.length,
-              separatorBuilder: (context, index) => const SizedBox(height: AppSpacing.sm),
+              separatorBuilder: (_, __) =>
+                  const SizedBox(height: AppSpacing.sm),
               itemBuilder: (context, index) {
                 final item = notifications[index];
                 final typeColor = _getTypeColor(item.type);
 
                 return Material(
-                  color: item.isRead ? AppColors.surface : AppColors.surfaceRaised,
+                  color: item.isRead
+                      ? AppColors.surface
+                      : AppColors.surfaceRaised,
                   borderRadius: AppRadii.control,
                   child: InkWell(
-                    onTap: () => notifier.markAsRead(item.id),
+                    onTap: item.isRead
+                        ? null
+                        : () => markNotificationRead(ref, item.id),
                     borderRadius: AppRadii.control,
                     child: Container(
                       padding: const EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: item.isRead ? AppColors.border : typeColor.withValues(alpha: 0.4),
+                          color: item.isRead
+                              ? AppColors.border
+                              : typeColor.withValues(alpha: 0.4),
                           width: item.isRead ? 1.0 : 1.5,
                         ),
                         borderRadius: AppRadii.control,
@@ -146,7 +190,7 @@ class NotificationsScreen extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Type Icon Avatar Container
+                          // Type icon
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
@@ -161,20 +205,23 @@ class NotificationsScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: AppSpacing.md),
 
-                          // Text Info (Title, Body, Timestamp)
+                          // Text info
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Expanded(
                                       child: Text(
                                         item.title,
                                         style: GoogleFonts.sora(
                                           fontSize: 13,
-                                          fontWeight: item.isRead ? FontWeight.w600 : FontWeight.bold,
+                                          fontWeight: item.isRead
+                                              ? FontWeight.w600
+                                              : FontWeight.bold,
                                           color: AppColors.inkPrimary,
                                         ),
                                       ),
@@ -201,7 +248,7 @@ class NotificationsScreen extends ConsumerWidget {
                             ),
                           ),
 
-                          // Unread Blue/Orange Dot
+                          // Unread dot
                           if (!item.isRead) ...[
                             const SizedBox(width: AppSpacing.sm),
                             Container(
@@ -221,6 +268,71 @@ class NotificationsScreen extends ConsumerWidget {
                 );
               },
             ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoadingSkeleton() {
+    return ListView.separated(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      itemCount: 4,
+      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+      itemBuilder: (_, __) => Container(
+        height: 80,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: AppRadii.control,
+        ),
+        child: const _ShimmerBox(),
+      ),
+    );
+  }
+}
+
+class _ShimmerBox extends StatefulWidget {
+  const _ShimmerBox();
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _anim = CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) => Container(
+        decoration: BoxDecoration(
+          borderRadius: AppRadii.control,
+          color: Color.lerp(
+            AppColors.surface,
+            AppColors.border,
+            _anim.value,
+          ),
+        ),
+      ),
     );
   }
 }

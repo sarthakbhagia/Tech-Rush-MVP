@@ -3,6 +3,7 @@ import '../models/job.dart';
 import '../models/application.dart';
 import '../services/job_service.dart';
 import '../services/application_service.dart';
+import '../services/dashboard_stats_service.dart';
 
 final jobServiceProvider = Provider<JobService>((ref) => JobService());
 final applicationServiceProvider = Provider<ApplicationService>((ref) => ApplicationService());
@@ -103,3 +104,37 @@ final jobsByEmployerProvider =
   final jobService = ref.watch(jobServiceProvider);
   return await jobService.fetchJobsByEmployer(employerId);
 });
+
+/// Parameter object for dashboardStatsProvider — keyed on user ID + role.
+class DashboardStatsParams {
+  final String userId;
+  final String role; // 'employer' or 'worker'
+
+  const DashboardStatsParams({required this.userId, required this.role});
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DashboardStatsParams &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          role == other.role;
+
+  @override
+  int get hashCode => userId.hashCode ^ role.hashCode;
+}
+
+/// Fetches real aggregate stats from Supabase for the Dashboard stat grid.
+/// Keyed on (userId, role) so it re-fetches when the user switches modes.
+final dashboardStatsProvider =
+    FutureProvider.family<DashboardStats, DashboardStatsParams>(
+  (ref, params) async {
+    if (params.userId.isEmpty) return const DashboardStats();
+    final service = DashboardStatsService();
+    if (params.role == 'employer') {
+      return service.fetchEmployerStats(params.userId);
+    } else {
+      return service.fetchWorkerStats(params.userId);
+    }
+  },
+);

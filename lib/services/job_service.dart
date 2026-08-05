@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/job.dart';
 import 'supabase_service.dart';
+import 'notification_service.dart';
 
 class JobService {
   final SupabaseClient _client = SupabaseService().client;
@@ -167,7 +168,10 @@ class JobService {
     }
   }
 
-  /// Updates status of a job ('open', 'assigned', 'completed') in Supabase
+  /// Updates status of a job ('open', 'assigned', 'completed') in Supabase.
+  /// When status becomes 'completed' → inserts notifications:
+  ///   - Worker: job_completed ("Your job is complete")
+  ///   - Employer: rate_worker ("Please rate your worker")
   Future<bool> updateJobStatus({
     required String jobId,
     required String status,
@@ -187,6 +191,12 @@ class JobService {
       if (kDebugMode) {
         print('✅ [JobService] Updated job $jobId status to $status');
       }
+
+      // ── Completion notifications ────────────────────────────────────────
+      if (status == 'completed') {
+        _sendCompletionNotifications(jobId);
+      }
+
       return true;
     } catch (e) {
       if (kDebugMode) {
@@ -195,4 +205,58 @@ class JobService {
       return false;
     }
   }
+
+  /// Fetches the job context and fires two notifications for job completion.
+  /// Runs asynchronously and swallows errors.
+  Future<void> _sendCompletionNotifications(String jobId) async {
+    final notif = NotificationService();
+    try {
+      final res = await _client
+          .from('jobs')
+          .select('employer_id, title')
+          .eq('id', jobId)
+          .maybeSingle();
+      if (res == null) return;
+
+      final employerId = res['employer_id']?.toString();
+      final jobTitle = res['title']?.toString() ?? 'your job';
+
+      // Fetch assigned worker via applications table
+      final appRes = await _client
+          .from('applications')
+          .select('worker_id')
+          .eq('job_id', jobId)
+          .eq('status', 'assigned')
+          .maybeSingle();
+
+      final workerId = appRes?['worker_id']?.toString();
+
+      if (workerId != null && _uuidRegExp.hasMatch(workerId)) {
+        await notif.insertNotification(
+          userId: workerId,
+          type: 'job_completed',
+          title: 'Job Marked Complete ✅',
+          body: '"$jobTitle" has been marked as completed. Great work!',
+          relatedJobId: jobId,
+        );
+      }
+
+      if (employerId != null && _uuidRegExp.hasMatch(employerId)) {
+        await notif.insertNotification(
+          userId: employerId,
+          type: 'rate_worker',
+          title: 'Rate Your Worker',
+          body: '"$jobTitle" is complete. Leave a rating for your worker!',
+          relatedJobId: jobId,
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ [JobService] _sendCompletionNotifications error: $e');
+      }
+    }
+  }
 }
+
+/// Fire-and-forget helper.
+void unawaited(Future<void> future) {}

@@ -84,6 +84,7 @@ void main() {
       applicationId: application!.id,
       jobId: createdJob.id,
       workerName: worker.name,
+      workerId: application.workerId,
       status: 'assigned',
     );
     expect(updated, isTrue);

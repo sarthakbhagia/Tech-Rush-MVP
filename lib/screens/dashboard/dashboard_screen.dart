@@ -21,6 +21,8 @@ import '../../models/job_category.dart';
 import '../../widgets/address_bottom_sheet.dart';
 import '../../widgets/post_job_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../services/dashboard_stats_service.dart';
 
 enum DashboardRole { employer, worker }
 
@@ -82,6 +84,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final currentLocale = ref.watch(localeProvider);
     final userProfile = ref.watch(userProfileProvider);
 
+    // Resolve the current authenticated user ID for stats queries
+    final currentUserId =
+        Supabase.instance.client.auth.currentUser?.id ?? '';
+    final statsRole = isEmployer ? 'employer' : 'worker';
+    final statsAsync = ref.watch(
+      dashboardStatsProvider(
+        DashboardStatsParams(userId: currentUserId, role: statsRole),
+      ),
+    );
+    final stats = statsAsync.valueOrNull ?? const DashboardStats();
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
@@ -89,6 +102,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: RefreshIndicator(
           onRefresh: () async {
             _simulateLoading();
+            // Invalidate stats and notification count so they re-fetch from Supabase
+            ref.invalidate(dashboardStatsProvider);
+            ref.invalidate(notificationsProvider);
             await Future.delayed(const Duration(milliseconds: 600));
           },
           backgroundColor: AppColors.surface,
@@ -265,7 +281,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         color: Colors.white,
                                       ),
                                     ),
-                                    if (ref.watch(unreadNotificationCountProvider) > 0)
+                                    if ((ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0) > 0)
                                       Positioned(
                                         top: -2,
                                         right: -2,
@@ -280,7 +296,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                             minHeight: 16,
                                           ),
                                           child: Text(
-                                            '${ref.watch(unreadNotificationCountProvider)}',
+                                            '${ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0}',
                                             style: GoogleFonts.spaceMono(
                                               fontSize: 9,
                                               fontWeight: FontWeight.bold,
@@ -636,7 +652,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFFFF7ED),
                                   iconColor: AppColors.brand,
                                   title: l10n.statActivePostings,
-                                  value: '2',
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : '${stats.activePostings}',
                                   subtext: l10n.statActivePostingsSubtext,
                                 ),
                                 _StatTile(
@@ -644,7 +662,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFEFF6FF),
                                   iconColor: const Color(0xFF2563EB),
                                   title: l10n.statApplications,
-                                  value: '7',
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : '${stats.totalApplications}',
                                   subtext: l10n.statApplicationsSubtext,
                                 ),
                                 _StatTile(
@@ -652,7 +672,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFECFDF5),
                                   iconColor: AppColors.success,
                                   title: l10n.statTotalDispatches,
-                                  value: '14',
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : '${stats.totalDispatches}',
                                   subtext: l10n.statTotalDispatchesSubtext,
                                 ),
                                 _StatTile(
@@ -660,7 +682,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFFEF3C7),
                                   iconColor: AppColors.brand,
                                   title: l10n.statAvgDailyPayout,
-                                  value: '₹750',
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : stats.avgDailyPayout > 0
+                                          ? '₹${stats.avgDailyPayout.toStringAsFixed(0)}'
+                                          : '—',
                                   subtext: l10n.statAvgDailyPayoutSubtext,
                                   highlightValue: true,
                                 ),
@@ -671,7 +697,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFFEF3C7),
                                   iconColor: AppColors.brand,
                                   title: l10n.statDailyWageRate,
-                                  value: '₹650/day',
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : '₹${stats.dailyRate.toStringAsFixed(0)}/day',
                                   subtext: l10n.statSetByEmployer,
                                   highlightValue: true,
                                 ),
@@ -680,15 +708,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFFFFBEB),
                                   iconColor: AppColors.warning,
                                   title: l10n.statRatingScore,
-                                  value: '4.8 ★',
-                                  subtext: l10n.stat24Reviews,
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : stats.workerReviewCount > 0
+                                          ? '${stats.workerRating.toStringAsFixed(1)} ★'
+                                          : 'New',
+                                  subtext: stats.workerReviewCount > 0
+                                      ? '${stats.workerReviewCount} Reviews'
+                                      : l10n.stat24Reviews,
                                 ),
                                 _StatTile(
                                   icon: Icons.task_alt_rounded,
                                   iconBg: const Color(0xFFECFDF5),
                                   iconColor: AppColors.success,
                                   title: l10n.statJobsCompleted,
-                                  value: '32',
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : '${stats.jobsCompleted}',
                                   subtext: l10n.statOnTime,
                                 ),
                                 _StatTile(
@@ -696,10 +732,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   iconBg: const Color(0xFFEFF6FF),
                                   iconColor: const Color(0xFF2563EB),
                                   title: l10n.statApplicationsSent,
-                                  value: '3',
-                                  subtext: l10n.statPendingReview,
+                                  value: statsAsync.isLoading
+                                      ? '—'
+                                      : '${stats.applicationsSent}',
+                                  subtext: stats.applicationsPending > 0
+                                      ? '${stats.applicationsPending} Pending'
+                                      : l10n.statPendingReview,
                                 ),
                               ],
+
                       ),
                       const SizedBox(height: AppSpacing.xxl + 8),
 
