@@ -32,26 +32,7 @@ class __AddressBottomSheetContentState
   late TextEditingController _localityController;
   late TextEditingController _cityController;
 
-  static const List<Map<String, String>> _presets = [
-    {
-      'label': 'Home: Indiranagar',
-      'street': 'Flat 302, Green Acres',
-      'locality': 'Indiranagar',
-      'city': 'BLR',
-    },
-    {
-      'label': 'Office: HSR Layout',
-      'street': 'Suite 104, Tech Park',
-      'locality': 'HSR Layout',
-      'city': 'BLR',
-    },
-    {
-      'label': 'Studio: Koramangala',
-      'street': 'Building 12, 5th Block',
-      'locality': 'Koramangala',
-      'city': 'BLR',
-    },
-  ];
+  // Removed hardcoded presets as per Option A
 
   @override
   void initState() {
@@ -70,13 +51,7 @@ class __AddressBottomSheetContentState
     super.dispose();
   }
 
-  void _applyPreset(Map<String, String> preset) {
-    setState(() {
-      _streetController.text = preset['street']!;
-      _localityController.text = preset['locality']!;
-      _cityController.text = preset['city']!;
-    });
-  }
+  // Preset method removed
 
   void _saveAddress() {
     widget.ref.read(userProfileProvider.notifier).updateAddress(
@@ -95,47 +70,7 @@ class __AddressBottomSheetContentState
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'Quick Location Presets',
-          style: GoogleFonts.spaceMono(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: AppColors.inkMuted,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _presets.map((p) {
-            final isCurrent = _localityController.text == p['locality'];
-            return ActionChip(
-              avatar: Icon(
-                Icons.location_on_rounded,
-                size: 14,
-                color: isCurrent ? AppColors.brand : AppColors.inkMuted,
-              ),
-              label: Text(
-                p['label']!,
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
-                  color: isCurrent ? AppColors.brand : AppColors.inkPrimary,
-                ),
-              ),
-              onPressed: () => _applyPreset(p),
-              backgroundColor: isCurrent ? AppColors.brandSubtle : AppColors.canvas,
-              shape: RoundedRectangleBorder(
-                borderRadius: AppRadii.pill,
-                side: BorderSide(
-                  color: isCurrent ? AppColors.brand : AppColors.border,
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: AppSpacing.lg),
+        // Quick Location Presets removed as per Option A
 
         // Address Fields
         Text(
@@ -176,7 +111,7 @@ class __AddressBottomSheetContentState
                     controller: _localityController,
                     style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
                     decoration: const InputDecoration(
-                      hintText: 'Indiranagar',
+                      hintText: 'e.g. Indiranagar',
                       prefixIcon: Icon(Icons.map_outlined, size: 18, color: AppColors.inkMuted),
                     ),
                   ),
@@ -201,7 +136,7 @@ class __AddressBottomSheetContentState
                     controller: _cityController,
                     style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
                     decoration: const InputDecoration(
-                      hintText: 'BLR',
+                      hintText: 'e.g. Pune',
                       prefixIcon: Icon(Icons.location_city_rounded, size: 18, color: AppColors.inkMuted),
                     ),
                   ),
@@ -215,8 +150,10 @@ class __AddressBottomSheetContentState
         StickyBottomBar(
           label: 'LOCATION UPDATE',
           price: _localityController.text.isEmpty
-              ? 'Indiranagar'
-              : '${_localityController.text}, ${_cityController.text}',
+              ? 'Set Address'
+              : _cityController.text.isEmpty
+                  ? _localityController.text
+                  : '${_localityController.text}, ${_cityController.text}',
           ctaLabel: l10n?.saveAddressCta ?? 'SAVE ADDRESS',
           onCta: _saveAddress,
         ),

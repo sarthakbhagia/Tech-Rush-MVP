@@ -40,16 +40,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _simulateLoading();
-    // Sync UI role state from persisted profile role
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final profileRole = ref.read(userProfileProvider).role;
-      if (profileRole == 'worker' && _role == DashboardRole.employer) {
-        setState(() => _role = DashboardRole.worker);
-      } else if (profileRole == 'employer' && _role == DashboardRole.worker) {
-        setState(() => _role = DashboardRole.employer);
-      }
-    });
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() => _isLoading = true);
+    await ref.read(userProfileProvider.notifier).refreshProfile();
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+        // Sync UI role state from persisted profile role
+        final profileRole = ref.read(userProfileProvider).role;
+        if (profileRole == 'worker' && _role == DashboardRole.employer) {
+          _role = DashboardRole.worker;
+        } else if (profileRole == 'employer' && _role == DashboardRole.worker) {
+          _role = DashboardRole.employer;
+        }
+      });
+    }
   }
 
   void _simulateLoading() {
@@ -79,6 +87,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: AppColors.canvas,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.brand,
+          ),
+        ),
+      );
+    }
+
     final isEmployer = _role == DashboardRole.employer;
     final l10n = AppLocalizations.of(context)!;
     final currentLocale = ref.watch(localeProvider);
@@ -101,11 +120,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         top: false,
         child: RefreshIndicator(
           onRefresh: () async {
-            _simulateLoading();
             // Invalidate stats and notification count so they re-fetch from Supabase
             ref.invalidate(dashboardStatsProvider);
             ref.invalidate(notificationsProvider);
-            await Future.delayed(const Duration(milliseconds: 600));
+            await _loadProfile();
           },
           backgroundColor: AppColors.surface,
           color: AppColors.brand,
@@ -196,7 +214,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     Text(
                                       userProfile.name.isNotEmpty
                                           ? userProfile.name
-                                          : (isEmployer ? 'Sharma Household' : 'Rajesh Kumar'),
+                                          : (isEmployer ? 'Guest Employer' : 'Guest Worker'),
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         color: Colors.white.withValues(alpha: 0.9),

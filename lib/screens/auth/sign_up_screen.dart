@@ -27,6 +27,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final TextEditingController _fullNameController = TextEditingController();
   final TextEditingController _streetController = TextEditingController();
   final TextEditingController _localityController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -41,6 +42,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     _fullNameController.dispose();
     _streetController.dispose();
     _localityController.dispose();
+    _cityController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _phoneController.dispose();
@@ -51,12 +53,17 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     final name = _fullNameController.text.trim();
     final street = _streetController.text.trim();
     final locality = _localityController.text.trim();
+    final city = _cityController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final phone = _phoneController.text.trim();
 
     if (name.isEmpty) {
       setState(() => _errorMessage = 'Please enter your full name');
+      return;
+    }
+    if (street.isEmpty || locality.isEmpty || city.isEmpty) {
+      setState(() => _errorMessage = 'Please complete your full address');
       return;
     }
     if (_method == AuthMethod.email) {
@@ -86,7 +93,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               fullName: name,
               streetAddress: street,
               locality: locality,
-              city: 'BLR',
+              city: city,
               email: email,
               password: password,
             );
@@ -104,7 +111,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             fullName: name,
             streetAddress: street,
             locality: locality,
-            city: 'BLR',
+            city: city,
             isDemoMode: !success,
           );
         }
@@ -236,6 +243,9 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     const SizedBox(height: 6),
                     TextField(
                       controller: _fullNameController,
+                      textCapitalization: TextCapitalization.words,
+                      enableSuggestions: false,
+                      autocorrect: false,
                       style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
                       decoration: const InputDecoration(
                         hintText: 'e.g. Sarthak Bhagia / Sharma Household',
@@ -245,35 +255,33 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
 
-                    // Street & Locality Address
+                    // Street / Flat Address
+                    Text(
+                      'STREET / FLAT *',
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _streetController,
+                      textCapitalization: TextCapitalization.words,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
+                      decoration: const InputDecoration(
+                        hintText: 'Flat 402, Sunrise Apt',
+                        prefixIcon: Icon(Icons.home_outlined,
+                            size: 16, color: AppColors.inkMuted),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    
+                    // Locality & City Address
                     Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'STREET / FLAT *',
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.inkMuted,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              TextField(
-                                controller: _streetController,
-                                style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
-                                decoration: const InputDecoration(
-                                  hintText: 'Flat 402, Sunrise Apt',
-                                  prefixIcon: Icon(Icons.home_outlined,
-                                      size: 16, color: AppColors.inkMuted),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,10 +297,42 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               const SizedBox(height: 6),
                               TextField(
                                 controller: _localityController,
+                                textCapitalization: TextCapitalization.words,
+                                enableSuggestions: false,
+                                autocorrect: false,
                                 style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
                                 decoration: const InputDecoration(
                                   hintText: 'Indiranagar',
                                   prefixIcon: Icon(Icons.location_on_outlined,
+                                      size: 16, color: AppColors.inkMuted),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'CITY *',
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.inkMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: _cityController,
+                                textCapitalization: TextCapitalization.words,
+                                enableSuggestions: false,
+                                autocorrect: false,
+                                style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
+                                decoration: const InputDecoration(
+                                  hintText: 'e.g. Pune',
+                                  prefixIcon: Icon(Icons.location_city_rounded,
                                       size: 16, color: AppColors.inkMuted),
                                 ),
                               ),

@@ -16,21 +16,21 @@ class UserProfile {
   final bool isLoggedIn;
 
   const UserProfile({
-    this.id = 'e0000000-0000-0000-0000-000000000001',
-    this.name = 'Sharma Household',
-    this.phone = '+91 98765 43210',
-    this.email = 'sharma.household@kaamsetu.app',
+    this.id,
+    this.name = '',
+    this.phone = '',
+    this.email = '',
     this.role = 'employer',
-    this.streetAddress = 'Flat 302, Green Acres',
-    this.locality = 'Indiranagar',
-    this.city = 'BLR',
-    this.pincode = '560038',
+    this.streetAddress = '',
+    this.locality = '',
+    this.city = '',
+    this.pincode = '',
     this.photoUrl,
     this.skills = const ['House Painting', 'Wall Tiling', 'Plumbing Leak Repair'],
     this.dailyRate = 650.0,
     this.dispatchRadiusKm = 15.0,
     this.availabilityStatus = 'available',
-    this.isLoggedIn = true,
+    this.isLoggedIn = false,
   });
 
   String get shortAddress {
@@ -41,12 +41,12 @@ class UserProfile {
     } else if (streetAddress.isNotEmpty) {
       return streetAddress;
     }
-    return 'Indiranagar, BLR';
+    return 'Set Location';
   }
 
   String get fullAddress {
     final parts = [streetAddress, locality, city, pincode].where((p) => p.trim().isNotEmpty).toList();
-    if (parts.isEmpty) return 'Indiranagar, BLR';
+    if (parts.isEmpty) return 'Location not set';
     return parts.join(', ');
   }
 

@@ -136,6 +136,16 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
           if (kDebugMode) {
             print('Dev Mode: Proceeding with test user session override...');
           }
+          
+          // Fallback: manually update the in-memory state so the Dashboard reflects the inputted values
+          ref.read(userProfileProvider.notifier).updateProfile(
+                name: widget.fullName,
+                streetAddress: widget.streetAddress,
+                locality: widget.locality,
+                city: widget.city,
+                phone: widget.phone,
+              );
+
           if (mounted) {
             Navigator.of(context).pop();
             context.go('/dashboard');

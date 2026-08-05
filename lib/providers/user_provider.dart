@@ -284,6 +284,24 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     } catch (_) {}
     state = const UserProfile(isLoggedIn: false);
   }
+
+  /// Manually refresh profile from Supabase
+  Future<void> refreshProfile() async {
+    try {
+      final user = SupabaseService().client.auth.currentUser;
+      if (user != null) {
+        final profile = await _profileService.fetchProfile(user.id);
+        if (profile != null) {
+          state = profile.copyWith(id: user.id);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ Error refreshing profile: $e');
+      }
+    }
+  }
+
   /// Local & remote profile state update helper
   Future<void> updateProfile({
     String? name,
