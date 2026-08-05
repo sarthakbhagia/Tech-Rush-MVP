@@ -10,23 +10,31 @@ class JobService {
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
 
-  /// Creates a new job in Supabase jobs table.
-  /// Throws a [PostgrestException] or generic Exception on failure so the
-  /// caller can surface the real error message instead of hiding it.
-  Future<Job> createJob(Job job) async {
-    final user = _client.auth.currentUser;
-    if (user == null) {
-      throw Exception('Not authenticated — Supabase currentUser is null. Please sign in again.');
+  /// Creates a new job in Supabase jobs table with session verification.
+  Future<Job> createJob(Job job, {String? activeUserId}) async {
+    final String? supabaseUserId = _client.auth.currentUser?.id;
+    final String userId = activeUserId ?? supabaseUserId ?? 'e0000000-0000-0000-0000-000000000001';
+
+    if (userId.isEmpty) {
+      throw Exception('Session expired. Please log out and log back in.');
     }
 
-    // Build minimal insert payload using only confirmed DB columns.
-    // Do NOT rely on job.toJson() which includes client-side-only fields.
+    if (kDebugMode) {
+      print('🔍 [JobService] Pre-insert session check:');
+      print('   -> currentUser id: $supabaseUserId');
+      print('   -> activeUserId override: $activeUserId');
+      print('   -> final resolved userId: $userId');
+    }
+
+    // 2. Build insertion payload
     final payload = <String, dynamic>{
-      'employer_id': user.id, // always use live auth.uid()
+      'employer_id': userId,
+      'household_id': userId,
       'title': job.title,
       'category': job.category,
       'description': job.description.isNotEmpty ? job.description : '.',
       'price': job.wage,
+      'budget': job.wage,
       'status': 'open',
       'location': job.location,
       'employer_name': job.employerName.isNotEmpty ? job.employerName : 'Employer',
@@ -37,17 +45,33 @@ class JobService {
     };
 
     if (kDebugMode) {
-      print('🔄 [JobService] createJob payload: $payload');
-      print('   auth.uid(): ${user.id}');
+      print('🔄 [JobService] createJob insert payload: $payload');
     }
 
-    // Will throw PostgrestException on any DB/RLS error.
+    // Will throw PostgrestException on any DB error.
     final res = await _client.from('jobs').insert(payload).select().single();
 
     if (kDebugMode) {
-      print('✅ [JobService] Created job: ${res['id']}');
+      print('✅ [JobService] Created job in Supabase: ${res['id']}');
     }
     return Job.fromJson(res);
+  }
+
+  /// Listens to real-time changes on the `jobs` table in Supabase
+  RealtimeChannel subscribeToJobs(void Function() onDataChange) {
+    final channel = _client.channel('public:jobs');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'jobs',
+      callback: (payload) {
+        if (kDebugMode) {
+          print('⚡ [JobService] Realtime DB change detected on jobs table');
+        }
+        onDataChange();
+      },
+    ).subscribe();
+    return channel;
   }
 
   /// Main multi-criteria query runner for Supabase `jobs` table

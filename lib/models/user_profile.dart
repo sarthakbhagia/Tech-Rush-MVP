@@ -1,4 +1,5 @@
 class UserProfile {
+  final String? id;
   final String name;
   final String phone;
   final String email;
@@ -15,9 +16,10 @@ class UserProfile {
   final bool isLoggedIn;
 
   const UserProfile({
+    this.id = 'e0000000-0000-0000-0000-000000000001',
     this.name = 'Sharma Household',
     this.phone = '+91 98765 43210',
-    this.email = 'sharma@example.com',
+    this.email = 'sharma.household@kaamsetu.app',
     this.role = 'employer',
     this.streetAddress = 'Flat 302, Green Acres',
     this.locality = 'Indiranagar',
@@ -49,6 +51,7 @@ class UserProfile {
   }
 
   UserProfile copyWith({
+    String? id,
     String? name,
     String? phone,
     String? email,
@@ -65,6 +68,7 @@ class UserProfile {
     bool? isLoggedIn,
   }) {
     return UserProfile(
+      id: id ?? this.id,
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,

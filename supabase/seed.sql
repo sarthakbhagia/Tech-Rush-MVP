@@ -133,6 +133,7 @@ WHERE id::text LIKE 'e0000000%'
    OR id::text LIKE 'f0000000%';
 
 DO $$ BEGIN
+    DELETE FROM auth.identities WHERE user_id::text LIKE 'e0000000%' OR user_id::text LIKE 'f0000000%';
     DELETE FROM auth.users WHERE id::text LIKE 'e0000000%' OR id::text LIKE 'f0000000%';
 EXCEPTION WHEN OTHERS THEN
     -- Ignore if running without direct auth.users write permission
@@ -140,24 +141,38 @@ END $$;
 
 
 -- -------------------------------------------------------------------------
--- 1. AUTH USERS PROVISIONING (Valid Hexadecimal UUIDs)
+-- 1. AUTH USERS & IDENTITIES PROVISIONING
 -- -------------------------------------------------------------------------
 INSERT INTO auth.users (
     id, instance_id, aud, role, email, encrypted_password, 
-    email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+    email_confirmed_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous, created_at, updated_at
 ) VALUES 
 -- Employers (e0000000-...)
-('e0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'sharma.household@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Sharma Household"}', now(), now()),
-('e0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'ananya.rao@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Ananya Rao"}', now(), now()),
-('e0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'rajesh.varma@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Rajesh Varma"}', now(), now()),
-('e0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'sunita.mehta@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Sunita Mehta"}', now(), now()),
+('e0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'sharma.household@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Sharma Household"}', false, false, now(), now()),
+('e0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ananya.rao@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Ananya Rao"}', false, false, now(), now()),
+('e0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'rajesh.varma@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Rajesh Varma"}', false, false, now(), now()),
+('e0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'sunita.mehta@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Sunita Mehta"}', false, false, now(), now()),
 
 -- Workers (f0000000-...)
-('f0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'ramesh.painter@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Ramesh Kumar"}', now(), now()),
-('f0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'suresh.electrician@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Suresh Patel"}', now(), now()),
-('f0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000007', 'authenticated', 'authenticated', 'lakshmi.cleaner@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Lakshmi Devi"}', now(), now()),
-('f0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000008', 'authenticated', 'authenticated', 'vikram.plumber@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Vikram Singh"}', now(), now()),
-('f0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000009', 'authenticated', 'authenticated', 'priya.gardener@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Priya Nair"}', now(), now())
+('f0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'ramesh.painter@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Ramesh Kumar"}', false, false, now(), now()),
+('f0000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'suresh.electrician@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Suresh Patel"}', false, false, now(), now()),
+('f0000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lakshmi.cleaner@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Lakshmi Devi"}', false, false, now(), now()),
+('f0000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'vikram.plumber@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Vikram Singh"}', false, false, now(), now()),
+('f0000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'priya.gardener@kaamsetu.app', '$2a$10$abcdefghijklmnopqrstuv', now(), '{"provider":"email","providers":["email"]}', '{"name":"Priya Nair"}', false, false, now(), now())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO auth.identities (
+    id, user_id, identity_data, provider, provider_id, created_at, updated_at
+) VALUES
+('e0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', '{"sub":"e0000000-0000-0000-0000-000000000001","email":"sharma.household@kaamsetu.app"}'::jsonb, 'email', 'e0000000-0000-0000-0000-000000000001', now(), now()),
+('e0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000002', '{"sub":"e0000000-0000-0000-0000-000000000002","email":"ananya.rao@kaamsetu.app"}'::jsonb, 'email', 'e0000000-0000-0000-0000-000000000002', now(), now()),
+('e0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000003', '{"sub":"e0000000-0000-0000-0000-000000000003","email":"rajesh.varma@kaamsetu.app"}'::jsonb, 'email', 'e0000000-0000-0000-0000-000000000003', now(), now()),
+('e0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000004', '{"sub":"e0000000-0000-0000-0000-000000000004","email":"sunita.mehta@kaamsetu.app"}'::jsonb, 'email', 'e0000000-0000-0000-0000-000000000004', now(), now()),
+('f0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001', '{"sub":"f0000000-0000-0000-0000-000000000001","email":"ramesh.painter@kaamsetu.app"}'::jsonb, 'email', 'f0000000-0000-0000-0000-000000000001', now(), now()),
+('f0000000-0000-0000-0000-000000000002', 'f0000000-0000-0000-0000-000000000002', '{"sub":"f0000000-0000-0000-0000-000000000002","email":"suresh.electrician@kaamsetu.app"}'::jsonb, 'email', 'f0000000-0000-0000-0000-000000000002', now(), now()),
+('f0000000-0000-0000-0000-000000000003', 'f0000000-0000-0000-0000-000000000003', '{"sub":"f0000000-0000-0000-0000-000000000003","email":"lakshmi.cleaner@kaamsetu.app"}'::jsonb, 'email', 'f0000000-0000-0000-0000-000000000003', now(), now()),
+('f0000000-0000-0000-0000-000000000004', 'f0000000-0000-0000-0000-000000000004', '{"sub":"f0000000-0000-0000-0000-000000000004","email":"vikram.plumber@kaamsetu.app"}'::jsonb, 'email', 'f0000000-0000-0000-0000-000000000004', now(), now()),
+('f0000000-0000-0000-0000-000000000005', 'f0000000-0000-0000-0000-000000000005', '{"sub":"f0000000-0000-0000-0000-000000000005","email":"priya.gardener@kaamsetu.app"}'::jsonb, 'email', 'f0000000-0000-0000-0000-000000000005', now(), now())
 ON CONFLICT (id) DO NOTHING;
 
 

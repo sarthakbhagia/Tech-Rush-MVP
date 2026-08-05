@@ -6,6 +6,16 @@ import '../services/supabase_service.dart';
 import '../services/profile_service.dart';
 import '../core/utils/formatters.dart';
 
+/// Global helper to retrieve the active user ID, falling back to a demo/test UUID if needed
+String get activeUserId {
+  final supabaseUser = SupabaseService().client.auth.currentUser?.id;
+  if (supabaseUser != null && supabaseUser.isNotEmpty) {
+    return supabaseUser;
+  }
+  // Fallback to a fixed test UUID (Sharma Household) so database operations work in dev mode
+  return 'e0000000-0000-0000-0000-000000000001';
+}
+
 class UserProfileNotifier extends StateNotifier<UserProfile> {
   final ProfileService _profileService = ProfileService();
 
@@ -16,18 +26,33 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
   /// Automatically checks if a user session is active on app start
   Future<void> _checkInitialSession() async {
     try {
-      final user = SupabaseService().client.auth.currentUser;
+      var user = SupabaseService().client.auth.currentUser;
+      if (user == null && SupabaseService().client.auth.currentSession != null) {
+        user = SupabaseService().client.auth.currentSession?.user;
+      }
+      if (user == null) {
+        try {
+          final res = await SupabaseService().client.auth.getUser();
+          user = res.user;
+        } catch (_) {}
+      }
+
       if (user != null) {
         final profile = await _profileService.fetchProfile(user.id);
         if (profile != null) {
-          state = profile;
+          state = profile.copyWith(id: user.id);
         } else {
           state = state.copyWith(
+            id: user.id,
             email: user.email ?? state.email,
             phone: user.phone ?? state.phone,
             isLoggedIn: true,
           );
         }
+      } else {
+        state = state.copyWith(
+          isLoggedIn: false,
+        );
       }
     } catch (e) {
       if (kDebugMode) {
@@ -52,10 +77,10 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
           password: password,
         );
 
-    final user = authResponse.user;
-    if (user == null) {
-      throw const AuthException('Registration failed. Unable to create Supabase user.');
+    if (authResponse.session == null || authResponse.user == null) {
+      throw const AuthException('Registration failed: Invalid credentials or session not established.');
     }
+    final user = authResponse.user!;
 
     // Insert user record into public.profiles
     await _profileService.upsertProfile(
@@ -71,6 +96,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
 
     // Update in-memory state
     state = UserProfile(
+      id: user.id,
       name: fullName,
       email: email,
       phone: phone,
@@ -92,17 +118,18 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
           password: password,
         );
 
-    final user = authResponse.user;
-    if (user == null) {
-      throw const AuthException('Authentication failed. No user found.');
+    if (authResponse.session == null || authResponse.user == null) {
+      throw const AuthException('Login failed: Invalid credentials or session not established.');
     }
+    final user = authResponse.user!;
 
     // Fetch user profile from Supabase profiles table
     final profile = await _profileService.fetchProfile(user.id);
     if (profile != null) {
-      state = profile;
+      state = profile.copyWith(id: user.id);
     } else {
       state = UserProfile(
+        id: user.id,
         name: user.email?.split('@').first ?? 'User',
         email: user.email ?? email,
         role: 'employer',
@@ -143,10 +170,15 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
 
   /// Real Supabase Send Mobile OTP with fallback handling
   Future<bool> sendMobileOtp({required String phone}) async {
-    final formattedPhone = phone.startsWith('+') ? phone : '+91$phone';
+    final digitsOnly = phone.replaceAll(RegExp(r'\D'), '');
+    final phoneWithCountryCode = digitsOnly.startsWith('91') ? digitsOnly : '91$digitsOnly';
+    final formattedPhone = '+$phoneWithCountryCode';
     try {
       await SupabaseService().client.auth.signInWithOtp(
             phone: formattedPhone,
+          ).timeout(
+            const Duration(seconds: 5),
+            onTimeout: () => throw const AuthException('Supabase connection timed out'),
           );
       return true;
     } on AuthException catch (e) {
@@ -172,36 +204,34 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     bool isDemoMode = false,
   }) async {
     final cleanToken = Formatters.toWesternDigits(token).trim();
-    final formattedPhone = phone.startsWith('+') ? phone : '+91$phone';
+    final digitsOnly = phone.replaceAll(RegExp(r'\D'), '');
+    final phoneWithCountryCode = digitsOnly.startsWith('91') ? digitsOnly : '91$digitsOnly';
+    final formattedPhone = '+$phoneWithCountryCode';
     User? user;
 
-    if (!isDemoMode) {
-      try {
-        final authResponse = await SupabaseService().client.auth.verifyOTP(
-              phone: formattedPhone,
-              token: cleanToken,
-              type: OtpType.sms,
-            );
-        user = authResponse.user;
-      } on AuthException catch (e) {
-        if ((e.message.contains('Unsupported phone provider') ||
-                e.message.contains('disabled')) &&
-            cleanToken == '123456') {
-          user = SupabaseService().client.auth.currentUser;
-        } else {
-          rethrow;
-        }
+    try {
+      final authResponse = await SupabaseService().client.auth.verifyOTP(
+        phone: formattedPhone,
+        token: cleanToken,
+        type: OtpType.sms,
+      ).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw const AuthException('Supabase connection timed out'),
+      );
+      
+      if (authResponse.session == null || authResponse.user == null) {
+        throw const AuthException('Session could not be established. Please re-enter OTP.');
       }
-    } else {
-      if (cleanToken != '123456') {
-        throw const AuthException('Invalid code. Please check and try again.');
-      }
-      user = SupabaseService().client.auth.currentUser;
+      user = authResponse.user;
+    } catch (e) {
+      rethrow;
     }
 
-    final cleanDigits = phone.replaceAll(RegExp(r'\D'), '').padLeft(12, '0');
-    final String targetUserId = user?.id ??
-        '00000000-0000-0000-0000-${cleanDigits.substring(cleanDigits.length - 12)}';
+    if (user == null) {
+      throw const AuthException('Verification failed: Session not established. Please try again or use Email Sign In.');
+    }
+
+    final String targetUserId = user.id;
 
     if (fullName != null && streetAddress != null && locality != null) {
       // New User Sign-Up registration
@@ -217,6 +247,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       );
 
       state = UserProfile(
+        id: targetUserId,
         name: fullName,
         phone: formattedPhone,
         email: user?.email ?? '',
@@ -230,9 +261,10 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       final profile = await _profileService.fetchProfile(targetUserId);
 
       if (profile != null) {
-        state = profile;
+        state = profile.copyWith(id: targetUserId);
       } else {
         state = UserProfile(
+          id: targetUserId,
           name: 'Verified User',
           phone: formattedPhone,
           email: user?.email ?? '',

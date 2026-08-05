@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme.dart';
 import 'l10n/app_localizations.dart';
 import 'providers/locale_provider.dart';
@@ -12,6 +13,16 @@ void main() async {
 
   // Initialize Supabase client
   await SupabaseService.initialize();
+
+  // Session refresh guard on app launch
+  final session = Supabase.instance.client.auth.currentSession;
+  if (session != null && session.isExpired) {
+    try {
+      await Supabase.instance.client.auth.refreshSession();
+    } catch (_) {
+      // Ignore refresh errors on launch, let the auth guard handle it later
+    }
+  }
 
   runApp(
     const ProviderScope(

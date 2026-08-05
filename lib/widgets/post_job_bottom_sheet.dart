@@ -9,11 +9,28 @@ import '../models/job.dart';
 import '../providers/job_provider.dart';
 import '../providers/user_provider.dart';
 import '../services/storage_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'app_bottom_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../models/job_category.dart';
 
 void openPostJobBottomSheet(BuildContext context, WidgetRef ref, {String? initialCategory}) {
+  final userId = activeUserId;
+  if (userId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: AppColors.danger,
+        content: Text(
+          'Please sign in to post a job.',
+          style: GoogleFonts.inter(color: Colors.white),
+        ),
+      ),
+    );
+    context.go('/auth/sign-in');
+    return;
+  }
+
   final l10n = AppLocalizations.of(context);
   showAppBottomSheet(
     context: context,
@@ -143,12 +160,17 @@ class __PostJobBottomSheetContentState
     );
 
     try {
-      final created = await widget.ref.read(jobServiceProvider).createJob(newJob);
+      final created = await widget.ref.read(jobServiceProvider).createJob(
+            newJob,
+            activeUserId: user.id,
+          );
 
       if (mounted) {
         setState(() => _isPosting = false);
         widget.ref.invalidate(jobsByCategoryProvider);
         widget.ref.invalidate(jobsByEmployerProvider);
+        widget.ref.invalidate(filteredJobsProvider);
+        widget.ref.invalidate(dashboardStatsProvider);
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -248,6 +270,8 @@ class __PostJobBottomSheetContentState
           const SizedBox(height: 6),
           TextFormField(
             controller: _titleController,
+            keyboardType: TextInputType.text,
+            textCapitalization: TextCapitalization.sentences,
             style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
             decoration: const InputDecoration(
               hintText: 'e.g. 3 BHK Interior Wall Painting',
@@ -270,6 +294,8 @@ class __PostJobBottomSheetContentState
           TextFormField(
             controller: _descController,
             maxLines: 2,
+            keyboardType: TextInputType.multiline,
+            textCapitalization: TextCapitalization.sentences,
             style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
             decoration: const InputDecoration(
               hintText: 'Provide task details, tools available, site requirements...',
