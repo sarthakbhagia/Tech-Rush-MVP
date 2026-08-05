@@ -131,8 +131,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Color(0xFFEA580C), // Vibrant rich orange
-                        Color(0xFFD97706), // Warm brand amber
+                        Color(0xFFA64A45), // Lighter maroon
+                        Color(0xFF943D39), // Base maroon
                       ],
                     ),
                     borderRadius: BorderRadius.vertical(
@@ -140,7 +140,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Color(0x29EA580C),
+                        color: Color(0x29A64A45),
                         blurRadius: 16.0,
                         offset: Offset(0, 6),
                       ),

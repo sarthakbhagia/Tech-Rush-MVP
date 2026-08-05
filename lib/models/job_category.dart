@@ -57,8 +57,8 @@ abstract class AppCategories {
       id: 'Painting',
       icon: Icons.format_paint_rounded,
       badgeTextKey: 'HIGH DEMAND',
-      badgeColor: Color(0xFFEA580C),
-      badgeBg: Color(0xFFFFF7ED),
+      badgeColor: Color(0xFF943D39),
+      badgeBg: Color(0xFFF7EBEB),
     ),
     JobCategory(
       id: 'Cleaning',

@@ -22,9 +22,9 @@ abstract class AppColors {
   static const Color inkCaption = Color(0xFF8E8D8A);    // De-emphasized caption text: #8E8D8A
 
   // Brand / Single-Purpose Accent (CTAs, Active states, Price, Ratings)
-  static const Color brand = Color(0xFFD97706);         // Base warm amber accent: #D97706
-  static const Color brandLight = Color(0xFFEA580C);    // Lighter / Active orange: #EA580C
-  static const Color brandSubtle = Color(0xFFFFF7ED);   // Soft warm orange pastel fill
+  static const Color brand = Color(0xFF943D39);         // Base maroon accent
+  static const Color brandLight = Color(0xFFA64A45);    // Lighter / Active maroon
+  static const Color brandSubtle = Color(0xFFF7EBEB);   // Soft warm maroon pastel fill
 
   // Status & Utility Colors
   static const Color success = Color(0xFF059669);       // Muted emerald green: #059669

@@ -11,9 +11,9 @@ abstract class AppColors {
   static const Color textMuted = Color(0xFFA8A29A);
   static const Color textDisabled = Color(0xFF78726A);
 
-  static const Color brand = Color(0xFFD97706);
-  static const Color brandLight = Color(0xFFF59E0B);
-  static const Color brandSubtle = Color(0x1FD97706);
+  static const Color brand = Color(0xFF943D39);
+  static const Color brandLight = Color(0xFFA64A45);
+  static const Color brandSubtle = Color(0x1F943D39);
 
   static const Color success = Color(0xFF10B981);
   static const Color successSubtle = Color(0x1F10B981);
