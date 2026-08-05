@@ -215,11 +215,14 @@ class ApplicationService {
           .update({'status': status}).eq('id', applicationId);
 
       if (status == 'assigned') {
-        // Update job to 'assigned' with the worker's name
-        await _client.from('jobs').update({
+        // Update job to 'assigned' with the worker's name and assigned_worker_id
+        final effectiveWorkerUuid = _uuidRegExp.hasMatch(workerId) ? workerId : null;
+        final jobUpdatePayload = <String, dynamic>{
           'status': 'assigned',
           'worker_name': workerName,
-        }).eq('id', jobId);
+          if (effectiveWorkerUuid != null) 'assigned_worker_id': effectiveWorkerUuid,
+        };
+        await _client.from('jobs').update(jobUpdatePayload).eq('id', jobId);
 
         // Reject all other pending applications for this job
         await _client

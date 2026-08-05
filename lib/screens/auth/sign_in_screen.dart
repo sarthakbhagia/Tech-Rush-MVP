@@ -24,6 +24,9 @@ class SignInScreen extends ConsumerStatefulWidget {
 class _SignInScreenState extends ConsumerState<SignInScreen> {
   SignInMethod _method = SignInMethod.email;
 
+  // Role selection for OTP sign-in (email carries it from profile)
+  String _selectedRole = 'employer';
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -55,7 +58,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       }
     } else {
       if (phone.length < 10) {
-        setState(() => _errorMessage = 'Please enter a valid 10-digit mobile number');
+        setState(() =>
+            _errorMessage = 'Please enter a valid 10-digit mobile number');
         return;
       }
     }
@@ -72,16 +76,21 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               password: password,
             );
         if (mounted) {
-          context.go('/dashboard');
+          // Route based on persisted role from profile
+          final role = ref.read(userProfileProvider).role;
+          context.go(role == 'worker' ? '/listings' : '/dashboard');
         }
       } else {
-        final success = await ref.read(userProfileProvider.notifier).sendMobileOtp(phone: phone);
+        final success = await ref
+            .read(userProfileProvider.notifier)
+            .sendMobileOtp(phone: phone);
         setState(() => _isLoading = false);
         if (mounted) {
           openOtpVerificationBottomSheet(
             context: context,
             ref: ref,
             phone: phone,
+            role: _selectedRole,
             isDemoMode: !success,
           );
         }
@@ -93,7 +102,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Mobile OTP send failed: ${e.toString()}';
+        _errorMessage = 'Sign in failed: ${e.toString()}';
         _isLoading = false;
       });
     }
@@ -117,9 +126,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   const SizedBox(width: 40),
                   const Logo(size: 28, showSubtitle: true),
                   GestureDetector(
-                    onTap: () => ref.read(localeProvider.notifier).toggleLocale(),
+                    onTap: () =>
+                        ref.read(localeProvider.notifier).toggleLocale(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 5),
                       decoration: BoxDecoration(
                         color: AppColors.surfaceRaised,
                         borderRadius: AppRadii.pill,
@@ -171,6 +182,45 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     ),
                     const SizedBox(height: AppSpacing.lg),
 
+                    // ── ROLE SELECTOR (shown for phone OTP only) ───────────
+                    // For email sign-in the role is loaded from the profile.
+                    // For phone sign-in (first time or new device), let them pick.
+                    if (_method == SignInMethod.phone) ...[
+                      Text(
+                        'SIGNING IN AS',
+                        style: GoogleFonts.spaceMono(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.inkMuted,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _RoleChip(
+                              emoji: '🏠',
+                              label: 'Employer',
+                              isSelected: _selectedRole == 'employer',
+                              onTap: () =>
+                                  setState(() => _selectedRole = 'employer'),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: _RoleChip(
+                              emoji: '🛠️',
+                              label: 'Worker',
+                              isSelected: _selectedRole == 'worker',
+                              onTap: () =>
+                                  setState(() => _selectedRole = 'worker'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+
                     // Error Message Banner
                     if (_errorMessage != null) ...[
                       Container(
@@ -218,7 +268,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 _errorMessage = null;
                               }),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
                                 decoration: BoxDecoration(
                                   color: _method == SignInMethod.email
                                       ? AppColors.surfaceRaised
@@ -251,7 +302,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 _errorMessage = null;
                               }),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
                                 decoration: BoxDecoration(
                                   color: _method == SignInMethod.phone
                                       ? AppColors.surfaceRaised
@@ -295,7 +347,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
+                        style: GoogleFonts.inter(
+                            fontSize: 13, color: AppColors.inkPrimary),
                         decoration: const InputDecoration(
                           hintText: 'user@example.com',
                           prefixIcon: Icon(Icons.mail_outline_rounded,
@@ -303,7 +356,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         ),
                       ),
                       const SizedBox(height: AppSpacing.md),
-
                       Text(
                         l10n.authPassword,
                         style: GoogleFonts.spaceMono(
@@ -316,7 +368,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
-                        style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
+                        style: GoogleFonts.inter(
+                            fontSize: 13, color: AppColors.inkPrimary),
                         decoration: const InputDecoration(
                           hintText: '••••••••',
                           prefixIcon: Icon(Icons.lock_outline_rounded,
@@ -336,7 +389,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 14),
                             decoration: const BoxDecoration(
                               color: AppColors.surfaceRaised,
                               borderRadius: BorderRadius.only(
@@ -366,7 +420,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 WesternDigitsTextInputFormatter(),
                               ],
                               maxLength: 10,
-                              style: GoogleFonts.spaceMono(fontSize: 14, color: AppColors.inkPrimary),
+                              style: GoogleFonts.spaceMono(
+                                  fontSize: 14, color: AppColors.inkPrimary),
                               decoration: const InputDecoration(
                                 counterText: '',
                                 hintText: '98765 43210',
@@ -402,7 +457,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Text(
-                                    _method == SignInMethod.email ? l10n.authSignIn : l10n.authSendOtpCta,
+                                    _method == SignInMethod.email
+                                        ? l10n.authSignIn
+                                        : l10n.authSendOtpCta,
                                     style: GoogleFonts.inter(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -421,16 +478,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               ),
               const SizedBox(height: AppSpacing.lg),
 
-              // Bottom Link: New here? Sign Up
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     'New here? ',
                     style: GoogleFonts.inter(
-                      fontSize: 13,
-                      color: AppColors.inkMuted,
-                    ),
+                        fontSize: 13, color: AppColors.inkMuted),
                   ),
                   GestureDetector(
                     onTap: () => context.go('/auth/sign-up'),
@@ -449,6 +503,55 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               const SizedBox(height: AppSpacing.xl),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact role chip for sign-in screen
+class _RoleChip extends StatelessWidget {
+  final String emoji;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _RoleChip({
+    required this.emoji,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.brandSubtle : AppColors.canvas,
+          borderRadius: AppRadii.control,
+          border: Border.all(
+            color: isSelected ? AppColors.brand : AppColors.border,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 16)),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: GoogleFonts.spaceMono(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: isSelected ? AppColors.brand : AppColors.inkMuted,
+              ),
+            ),
+          ],
         ),
       ),
     );

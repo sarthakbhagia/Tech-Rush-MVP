@@ -20,6 +20,7 @@ void openOtpVerificationBottomSheet({
   String? streetAddress,
   String? locality,
   String? city,
+  String role = 'employer',
   bool isDemoMode = false,
 }) {
   showAppBottomSheet(
@@ -31,6 +32,7 @@ void openOtpVerificationBottomSheet({
       streetAddress: streetAddress,
       locality: locality,
       city: city,
+      role: role,
       isDemoMode: isDemoMode,
     ),
   );
@@ -42,6 +44,7 @@ class OtpVerificationWidget extends ConsumerStatefulWidget {
   final String? streetAddress;
   final String? locality;
   final String? city;
+  final String role;
   final bool isDemoMode;
 
   const OtpVerificationWidget({
@@ -51,14 +54,17 @@ class OtpVerificationWidget extends ConsumerStatefulWidget {
     this.streetAddress,
     this.locality,
     this.city,
+    this.role = 'employer',
     this.isDemoMode = false,
   });
 
   @override
-  ConsumerState<OtpVerificationWidget> createState() => _OtpVerificationWidgetState();
+  ConsumerState<OtpVerificationWidget> createState() =>
+      _OtpVerificationWidgetState();
 }
 
-class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
+class _OtpVerificationWidgetState
+    extends ConsumerState<OtpVerificationWidget> {
   final List<TextEditingController> _controllers =
       List.generate(6, (_) => TextEditingController());
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
@@ -102,10 +108,20 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
         _controllers.map((c) => c.text).join(),
       );
 
+  /// Determines the post-auth route based on role.
+  String _postAuthRoute() {
+    // After OTP verification, use profile role if available, else widget.role
+    final profileRole = ref.read(userProfileProvider).role;
+    final effectiveRole =
+        profileRole.isNotEmpty ? profileRole : widget.role;
+    return effectiveRole == 'worker' ? '/listings' : '/dashboard';
+  }
+
   Future<void> _verifyOtp() async {
     final token = _otpToken.trim();
     if (token.length < 6) {
-      setState(() => _errorMessage = 'Please enter all 6 digits of your OTP code');
+      setState(
+          () => _errorMessage = 'Please enter all 6 digits of your OTP code');
       return;
     }
 
@@ -116,7 +132,10 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
 
     try {
       final cleanPhone = widget.phone.replaceAll(RegExp(r'\D'), '');
-      if ((cleanPhone.contains('7058046461') || cleanPhone.contains('917058046461')) && token == '123456') {
+      // Dev/test bypass for well-known test numbers
+      if ((cleanPhone.contains('7058046461') ||
+              cleanPhone.contains('917058046461')) &&
+          token == '123456') {
         try {
           await ref.read(userProfileProvider.notifier).verifyMobileOtp(
                 phone: widget.phone,
@@ -125,30 +144,29 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
                 streetAddress: widget.streetAddress,
                 locality: widget.locality,
                 city: widget.city,
+                role: widget.role,
                 isDemoMode: widget.isDemoMode,
               );
           if (mounted) {
             Navigator.of(context).pop();
-            context.go('/dashboard');
+            context.go(_postAuthRoute());
           }
           return;
         } catch (_) {
           if (kDebugMode) {
             print('Dev Mode: Proceeding with test user session override...');
           }
-          
-          // Fallback: manually update the in-memory state so the Dashboard reflects the inputted values
           ref.read(userProfileProvider.notifier).updateProfile(
                 name: widget.fullName,
                 streetAddress: widget.streetAddress,
                 locality: widget.locality,
                 city: widget.city,
                 phone: widget.phone,
+                role: widget.role,
               );
-
           if (mounted) {
             Navigator.of(context).pop();
-            context.go('/dashboard');
+            context.go(_postAuthRoute());
           }
           return;
         }
@@ -161,30 +179,25 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
             streetAddress: widget.streetAddress,
             locality: widget.locality,
             city: widget.city,
+            role: widget.role,
             isDemoMode: widget.isDemoMode,
           );
 
       if (mounted) {
         Navigator.of(context).pop();
-        context.go('/dashboard');
+        context.go(_postAuthRoute());
       }
     } on AuthException catch (e) {
       if (mounted) {
-        setState(() {
-          _errorMessage = e.message;
-        });
+        setState(() => _errorMessage = e.message);
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _errorMessage = e.toString();
-        });
+        setState(() => _errorMessage = e.toString());
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -193,11 +206,14 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
     if (_resendCountdown > 0) return;
     setState(() => _errorMessage = null);
     try {
-      await ref.read(userProfileProvider.notifier).sendMobileOtp(phone: widget.phone);
+      await ref
+          .read(userProfileProvider.notifier)
+          .sendMobileOtp(phone: widget.phone);
       _startTimer();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('OTP code resent to your mobile number.')),
+          const SnackBar(
+              content: Text('OTP code resent to your mobile number.')),
         );
       }
     } catch (e) {
@@ -216,10 +232,7 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
       children: [
         Text(
           'Enter the 6-digit authorization code dispatched to:',
-          style: GoogleFonts.inter(
-            fontSize: 12,
-            color: AppColors.inkMuted,
-          ),
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.inkMuted),
         ),
         const SizedBox(height: 4),
         Row(
@@ -278,7 +291,7 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
           const SizedBox(height: AppSpacing.md),
         ],
 
-        // 6 Pin Boxes
+        // 6-digit pin boxes
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: List.generate(6, (index) {
@@ -289,9 +302,7 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
                 controller: _controllers[index],
                 focusNode: _focusNodes[index],
                 keyboardType: TextInputType.number,
-                inputFormatters: const [
-                  WesternDigitsTextInputFormatter(),
-                ],
+                inputFormatters: const [WesternDigitsTextInputFormatter()],
                 textAlign: TextAlign.center,
                 maxLength: 1,
                 style: GoogleFonts.spaceMono(
@@ -306,14 +317,18 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
                   enabledBorder: OutlineInputBorder(
                     borderRadius: AppRadii.control,
                     borderSide: BorderSide(
-                      color: _errorMessage != null ? AppColors.danger : Colors.transparent,
+                      color: _errorMessage != null
+                          ? AppColors.danger
+                          : Colors.transparent,
                       width: _errorMessage != null ? 1.5 : 0,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: AppRadii.control,
                     borderSide: BorderSide(
-                      color: _errorMessage != null ? AppColors.danger : AppColors.brand,
+                      color: _errorMessage != null
+                          ? AppColors.danger
+                          : AppColors.brand,
                       width: 2,
                     ),
                   ),
@@ -334,18 +349,15 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
         ),
         const SizedBox(height: AppSpacing.lg),
 
-        // Resend Timer Row
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
               _resendCountdown > 0
                   ? 'Resend OTP in ${_resendCountdown}s'
-                  : 'Didn\'t receive code?',
-              style: GoogleFonts.spaceMono(
-                fontSize: 11,
-                color: AppColors.inkMuted,
-              ),
+                  : "Didn't receive code?",
+              style:
+                  GoogleFonts.spaceMono(fontSize: 11, color: AppColors.inkMuted),
             ),
             GestureDetector(
               onTap: _resendCountdown == 0 ? _resendOtp : null,
@@ -354,7 +366,9 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
                 style: GoogleFonts.spaceMono(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: _resendCountdown == 0 ? AppColors.brand : AppColors.inkCaption,
+                  color: _resendCountdown == 0
+                      ? AppColors.brand
+                      : AppColors.inkCaption,
                 ),
               ),
             ),
@@ -362,7 +376,6 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
         ),
         const SizedBox(height: AppSpacing.xl),
 
-        // Submit Button
         SizedBox(
           height: 48,
           child: ElevatedButton(
@@ -378,9 +391,7 @@ class _OtpVerificationWidgetState extends ConsumerState<OtpVerificationWidget> {
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
+                        strokeWidth: 2, color: Colors.white),
                   )
                 : Text(
                     'Verify & Proceed',

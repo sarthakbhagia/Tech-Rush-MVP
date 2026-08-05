@@ -8,12 +8,14 @@ import '../../models/job.dart';
 import '../../models/application.dart';
 import '../../providers/job_provider.dart';
 import '../../providers/user_provider.dart';
+import '../../services/supabase_service.dart';
 import '../../widgets/job_status_stepper.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/trust_badge_row.dart';
 import '../../widgets/provider_card.dart';
 import '../../widgets/sticky_bottom_bar.dart';
 import '../../widgets/rate_worker_bottom_sheet.dart';
+import '../../widgets/thumbs_rating_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -34,25 +36,39 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
   Future<void> _handleExpressInterest(Job job) async {
     final user = ref.read(userProfileProvider);
-    if (!user.isLoggedIn) {
+
+    // Check both the provider state AND the live Supabase session to avoid
+    // the race condition where _checkInitialSession hasn't completed yet.
+    final liveSession = SupabaseService().client.auth.currentSession;
+    final liveUser = SupabaseService().client.auth.currentUser;
+    final isAuthenticated =
+        user.isLoggedIn || liveSession != null || liveUser != null;
+
+    if (!isAuthenticated) {
       context.push('/auth/sign-in');
       return;
     }
 
     setState(() => _isApplying = true);
 
+    // Resolve the real UUID — prefer live Supabase session over provider state
+    final resolvedId = liveUser?.id ??
+        (user.id?.isNotEmpty == true ? user.id! : null) ??
+        (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
+
     final app = await ref.read(applicationServiceProvider).applyToJob(
           jobId: job.id,
-          workerId: user.phone.isNotEmpty ? user.phone : 'worker_${user.name}',
-          workerName: user.name.isNotEmpty ? user.name : 'Ramesh Kumar',
-          workerPhone: user.phone.isNotEmpty ? user.phone : '+91 98765 43210',
+          workerId: resolvedId,
+          workerName: user.name.isNotEmpty
+              ? user.name
+              : (liveUser?.email?.split('@').first ?? 'Worker'),
+          workerPhone: user.phone.isNotEmpty ? user.phone : '',
         );
 
     if (mounted) {
       setState(() => _isApplying = false);
       if (app != null) {
         ref.invalidate(jobApplicationsProvider(job.id));
-        ref.invalidate(workerApplicationsProvider);
         ref.invalidate(jobDetailProvider(job.id));
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -180,8 +196,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
 
           final asyncApps = ref.watch(jobApplicationsProvider(job.id));
           final applications = asyncApps.asData?.value ?? [];
-          final hasApplied = applications.any(
-              (a) => a.workerId == (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}'));
+          final liveUid = SupabaseService().client.auth.currentUser?.id;
+          final currentWorkerId = liveUid ??
+              (user.id?.isNotEmpty == true ? user.id! : null) ??
+              (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
+          final hasApplied = applications.any((a) => a.workerId == currentWorkerId);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -371,6 +390,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   Column(
                     children: applications.map((app) {
                       final isSelected = app.status == 'assigned';
+                      // Determine whether the current viewer is the employer
+                      final liveUid = SupabaseService().client.auth.currentUser?.id;
+                      final viewerIsEmployer = liveUid == job.employerId ||
+                          user.role == 'employer';
+                      // Determine whether current viewer is this specific applicant
+                      final viewerIsThisWorker = liveUid == app.workerId ||
+                          user.id == app.workerId;
+
                       return Container(
                         margin: const EdgeInsets.only(bottom: AppSpacing.sm),
                         padding: const EdgeInsets.all(AppSpacing.md),
@@ -382,17 +409,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                           ),
                         ),
                         child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: const BoxDecoration(
-                                color: AppColors.surfaceRaised,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.person_rounded,
-                                  size: 20, color: AppColors.brand),
-                            ),
+                            // Avatar — show photo_url if available
+                            _WorkerAvatar(workerId: app.workerId),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
@@ -407,41 +427,49 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                                     ),
                                   ),
                                   Text(
-                                    '${app.workerPhone} • ${app.status.toUpperCase()}',
+                                    // Show phone only to employer after assignment
+                                    isSelected && viewerIsEmployer
+                                        ? '${app.workerPhone} • ${app.status.toUpperCase()}'
+                                        : app.status.toUpperCase(),
                                     style: GoogleFonts.spaceMono(
                                       fontSize: 10,
-                                      color: isSelected ? AppColors.brand : AppColors.inkMuted,
+                                      color: isSelected
+                                          ? AppColors.brand
+                                          : AppColors.inkMuted,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                            if (!isAssigned && app.status != 'rejected')
-                              ElevatedButton(
-                                onPressed: () => _handleAcceptApplication(app, job),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.brand,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: AppRadii.pill,
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                ),
-                                child: Text(
-                                  l10n.jobDetailAcceptCta,
-                                  style: GoogleFonts.spaceMono(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              )
-                            else if (isSelected)
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
+                            // Action buttons
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                if (!isAssigned &&
+                                    app.status != 'rejected' &&
+                                    viewerIsEmployer)
+                                  ElevatedButton(
+                                    onPressed: () =>
+                                        _handleAcceptApplication(app, job),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.brand,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: AppRadii.pill,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 6),
+                                    ),
+                                    child: Text(
+                                      l10n.jobDetailAcceptCta,
+                                      style: GoogleFonts.spaceMono(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                else if (isSelected) ...[
+                                  // Status badge
                                   Container(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 8, vertical: 4),
@@ -459,56 +487,60 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: 6),
-                                  GestureDetector(
-                                    onTap: () async {
-                                      if (!isCompleted) {
-                                        // Mark job completed in database first
-                                        await ref.read(jobServiceProvider).updateJobStatus(
-                                              jobId: job.id,
-                                              status: 'completed',
-                                            );
-                                        ref.invalidate(jobDetailProvider(job.id));
-                                        ref.invalidate(jobsByCategoryProvider);
-                                        ref.invalidate(filteredJobsProvider);
-                                      }
-                                      if (mounted) {
-                                        openRateWorkerBottomSheet(
+
+                                  // Employer: Rate Worker button
+                                  if (viewerIsEmployer)
+                                    GestureDetector(
+                                      onTap: () async {
+                                        if (!isCompleted) {
+                                          await ref
+                                              .read(jobServiceProvider)
+                                              .updateJobStatus(
+                                                  jobId: job.id,
+                                                  status: 'completed');
+                                          ref.invalidate(
+                                              jobDetailProvider(job.id));
+                                          ref.invalidate(jobsByCategoryProvider);
+                                          ref.invalidate(filteredJobsProvider);
+                                        }
+                                        if (mounted) {
+                                          openThumbsRatingBottomSheet(
+                                            context,
+                                            ref,
+                                            jobId: job.id,
+                                            evaluatorId: liveUid ?? user.id ?? '',
+                                            targetId: app.workerId,
+                                            targetName: app.workerName,
+                                            raterRole: 'employer',
+                                            employerId: job.employerId ?? '',
+                                            workerId: app.workerId,
+                                          );
+                                        }
+                                      },
+                                      child: _rateButton('Rate Worker 👍'),
+                                    ),
+
+                                  // Worker: Rate Employer button
+                                  if (viewerIsThisWorker && isCompleted)
+                                    GestureDetector(
+                                      onTap: () {
+                                        openThumbsRatingBottomSheet(
                                           context,
                                           ref,
                                           jobId: job.id,
+                                          evaluatorId: liveUid ?? user.id ?? '',
+                                          targetId: job.employerId ?? '',
+                                          targetName: job.employerName,
+                                          raterRole: 'worker',
+                                          employerId: job.employerId ?? '',
                                           workerId: app.workerId,
-                                          workerName: app.workerName,
                                         );
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.surfaceRaised,
-                                        borderRadius: AppRadii.pill,
-                                        border: Border.all(color: AppColors.warning),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(Icons.star_rounded,
-                                              size: 12, color: AppColors.warning),
-                                          const SizedBox(width: 2),
-                                          Text(
-                                            'Rate Worker',
-                                            style: GoogleFonts.spaceMono(
-                                              fontSize: 9.5,
-                                              fontWeight: FontWeight.bold,
-                                              color: AppColors.warning,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
+                                      },
+                                      child: _rateButton('Rate Employer 👍'),
                                     ),
-                                  ),
                                 ],
-                              ),
+                              ],
+                            ),
                           ],
                         ),
                       );
@@ -536,8 +568,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           if (job == null) return null;
           final asyncApps = ref.watch(jobApplicationsProvider(job.id));
           final applications = asyncApps.asData?.value ?? [];
-          final hasApplied = applications.any(
-              (a) => a.workerId == (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}'));
+          final bottomWorkerId = user.id?.isNotEmpty == true
+              ? user.id!
+              : (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
+          final hasApplied = applications.any((a) => a.workerId == bottomWorkerId);
           final isAssigned = job.status == 'assigned';
 
           return StickyBottomBar(
@@ -591,4 +625,113 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ),
     );
   }
+
+  Widget _rateButton(String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceRaised,
+        borderRadius: AppRadii.pill,
+        border: Border.all(color: AppColors.warning),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.thumb_up_alt_outlined,
+              size: 12, color: AppColors.warning),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.spaceMono(
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: AppColors.warning,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+/// Loads and displays a worker's avatar from Supabase profiles.
+/// Falls back to an initials circle if photo_url is absent.
+class _WorkerAvatar extends ConsumerWidget {
+  final String workerId;
+  const _WorkerAvatar({required this.workerId});
+
+  static final _uuidRe = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!_uuidRe.hasMatch(workerId)) {
+      return _fallbackAvatar('?');
+    }
+
+    final profileAsync = ref.watch(_workerPhotoProvider(workerId));
+    return profileAsync.when(
+      data: (data) {
+        final photoUrl = data['photo_url'] as String?;
+        final name = data['name'] as String? ?? '?';
+        if (photoUrl != null && photoUrl.isNotEmpty) {
+          return ClipOval(
+            child: Image.network(
+              photoUrl,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallbackAvatar(name),
+            ),
+          );
+        }
+        return _fallbackAvatar(name);
+      },
+      loading: () => _fallbackAvatar('…'),
+      error: (_, __) => _fallbackAvatar('?'),
+    );
+  }
+
+  Widget _fallbackAvatar(String nameOrInitial) {
+    final initial = nameOrInitial.isNotEmpty
+        ? nameOrInitial[0].toUpperCase()
+        : '?';
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceRaised,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: GoogleFonts.sora(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: AppColors.brand,
+        ),
+      ),
+    );
+  }
+}
+
+/// Provider that fetches only photo_url + name for a worker's profile.
+final _workerPhotoProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, workerId) async {
+  try {
+    final client = SupabaseService().client;
+    final res = await client
+        .from('profiles')
+        .select('full_name, photo_url')
+        .eq('id', workerId)
+        .maybeSingle();
+    if (res == null) return {};
+    return {
+      'name': res['full_name']?.toString() ?? '',
+      'photo_url': res['photo_url']?.toString(),
+    };
+  } catch (_) {
+    return {};
+  }
+});
