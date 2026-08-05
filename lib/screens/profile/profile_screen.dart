@@ -13,6 +13,9 @@ import '../../providers/user_provider.dart';
 import '../../providers/review_provider.dart';
 import '../../services/storage_service.dart';
 import '../../services/work_sample_service.dart';
+import '../../services/seed_service.dart';
+import '../../providers/job_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -946,6 +949,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Warm dark mode tokens active.')),
                       );
+                    },
+                  ),
+                  _buildActionRow(
+                    Icons.dataset_linked_rounded,
+                    'Reset & Seed Demo Data',
+                    onTap: () async {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Seeding database with demo profiles & jobs...')),
+                      );
+                      final success = await SeedService().seedDemoData();
+                      ref.invalidate(filteredJobsProvider);
+                      ref.invalidate(notificationsProvider);
+                      ref.invalidate(dashboardStatsProvider);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: success ? AppColors.success : AppColors.brand,
+                            content: Text(
+                              success
+                                  ? '✅ Database seeded successfully! Pull to refresh.'
+                                  : '⚠️ Seed data queued. Verify Supabase connection.',
+                            ),
+                          ),
+                        );
+                      }
                     },
                   ),
                   _buildActionRow(
