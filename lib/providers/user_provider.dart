@@ -207,6 +207,35 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
     final digitsOnly = phone.replaceAll(RegExp(r'\D'), '');
     final phoneWithCountryCode = digitsOnly.startsWith('91') ? digitsOnly : '91$digitsOnly';
     final formattedPhone = '+$phoneWithCountryCode';
+
+    if (isDemoMode) {
+      final targetUserId = role == 'employer'
+          ? 'e0000000-0000-0000-0000-000000000001'
+          : 'e0000000-0000-0000-0000-000000000002';
+      
+      UserProfile? profile;
+      try {
+        profile = await _profileService.fetchProfile(targetUserId);
+      } catch (_) {}
+
+      if (profile != null) {
+        state = profile.copyWith(id: targetUserId, isLoggedIn: true);
+      } else {
+        state = UserProfile(
+          id: targetUserId,
+          name: fullName ?? 'Demo User',
+          phone: formattedPhone,
+          email: '$phone@kaamsetu.app',
+          streetAddress: streetAddress ?? 'Flat 302, Green Acres',
+          locality: locality ?? 'Indiranagar',
+          city: city ?? 'BLR',
+          role: role,
+          isLoggedIn: true,
+        );
+      }
+      return;
+    }
+
     User? user;
 
     try {

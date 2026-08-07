@@ -152,13 +152,20 @@ class _OtpVerificationWidgetState
           if (kDebugMode) {
             print('Dev Mode: Proceeding with test user session override...');
           }
-          ref.read(userProfileProvider.notifier).updateProfile(
+          final notifier = ref.read(userProfileProvider.notifier);
+          await notifier.updateProfile(
                 name: widget.fullName,
                 streetAddress: widget.streetAddress,
                 locality: widget.locality,
                 city: widget.city,
                 phone: widget.phone,
                 role: widget.role,
+              );
+          notifier.state = notifier.state.copyWith(
+                id: widget.role == 'employer'
+                    ? 'e0000000-0000-0000-0000-000000000001'
+                    : 'e0000000-0000-0000-0000-000000000002',
+                isLoggedIn: true,
               );
           if (mounted) {
             Navigator.of(context).pop();

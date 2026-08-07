@@ -13,6 +13,7 @@ import '../../widgets/filter_bottom_sheet.dart';
 import '../../providers/filter_provider.dart';
 import '../../providers/job_provider.dart';
 import '../../providers/locale_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/job_category.dart';
 
@@ -147,6 +148,9 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final filterState = ref.watch(jobFilterProvider);
+    final user = ref.watch(userProfileProvider);
+    final isEmployer = user.isLoggedIn && user.role == 'employer';
+
     final queryParams = JobQueryParams(
       category: filterState.categories.isNotEmpty ? filterState.categories.first : _selectedCategory,
       status: _selectedStatusTab,
@@ -155,7 +159,10 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
       searchQuery: _searchQuery,
       sortBy: filterState.sortBy,
     );
-    final asyncJobs = ref.watch(filteredJobsProvider(queryParams));
+
+    final asyncJobs = isEmployer
+        ? ref.watch(jobsByEmployerProvider(user.id ?? ''))
+        : ref.watch(filteredJobsProvider(queryParams));
 
     return Scaffold(
       backgroundColor: AppColors.canvas,

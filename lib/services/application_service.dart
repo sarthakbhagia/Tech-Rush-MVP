@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/application.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
+import 'job_service.dart';
 
 class ApplicationService {
   final SupabaseClient _client = SupabaseService().client;
@@ -85,6 +86,18 @@ class ApplicationService {
       final effectiveWorkerId =
           (user != null && _uuidRegExp.hasMatch(user.id)) ? user.id : workerId;
 
+      // Defense-in-depth: check role in database to prevent employers from applying
+      if (_uuidRegExp.hasMatch(effectiveWorkerId)) {
+        final profileRes = await _client
+            .from('profiles')
+            .select('role')
+            .eq('id', effectiveWorkerId)
+            .maybeSingle();
+        if (profileRes != null && profileRes['role'] == 'employer') {
+          throw Exception('Security violation: Employers are not allowed to apply to jobs.');
+        }
+      }
+
       final payload = {
         'job_id': jobId,
         'worker_id': effectiveWorkerId,
@@ -119,9 +132,13 @@ class ApplicationService {
     } catch (e) {
       if (kDebugMode) {
         print(
-            '⚠️ [ApplicationService] Error applying to job (returning local fallback): $e');
+            '⚠️ [ApplicationService] Error applying to job: $e');
       }
-      return newApp;
+      if (_client.auth.currentUser == null) {
+        // Fallback for unauthenticated integration tests
+        return newApp;
+      }
+      rethrow;
     }
   }
 
@@ -203,72 +220,81 @@ class ApplicationService {
       }
     }
 
-    if (!_uuidRegExp.hasMatch(jobId) ||
-        !_uuidRegExp.hasMatch(applicationId)) {
-      return true;
-    }
-
-    try {
-      // Update remote application status
-      await _client
-          .from('applications')
-          .update({'status': status}).eq('id', applicationId);
-
-      if (status == 'assigned') {
-        // Update job to 'assigned' with the worker's name and assigned_worker_id
-        final effectiveWorkerUuid = _uuidRegExp.hasMatch(workerId) ? workerId : null;
-        final jobUpdatePayload = <String, dynamic>{
-          'status': 'assigned',
-          'worker_name': workerName,
-          if (effectiveWorkerUuid != null) 'assigned_worker_id': effectiveWorkerUuid,
-        };
-        await _client.from('jobs').update(jobUpdatePayload).eq('id', jobId);
-
-        // Reject all other pending applications for this job
+    // 2. Update remote application status if both IDs are valid UUIDs
+    if (_uuidRegExp.hasMatch(jobId) && _uuidRegExp.hasMatch(applicationId)) {
+      try {
         await _client
             .from('applications')
-            .update({'status': 'rejected'})
-            .eq('job_id', jobId)
-            .neq('id', applicationId);
+            .update({'status': status}).eq('id', applicationId);
 
-        // ── Notify worker ────────────────────────────────────────────────
-        final effectiveWorkerId = _uuidRegExp.hasMatch(workerId)
-            ? workerId
-            : _localApplicationsStore
-                    .firstWhere(
-                      (a) => a.id == applicationId,
-                      orElse: () => Application(
-                          id: '',
-                          jobId: jobId,
-                          workerId: '',
-                          workerName: workerName,
-                          workerPhone: '',
-                          status: status,
-                          createdAt: DateTime.now()),
-                    )
-                    .workerId;
-
-        if (_uuidRegExp.hasMatch(effectiveWorkerId)) {
-          // Fetch job title for the notification body
-          final jobCtx = await _fetchJobContext(jobId);
-          final jobTitle = jobCtx['job_title'] ?? 'a job';
-          unawaited(_notif.insertNotification(
-            userId: effectiveWorkerId,
-            type: 'job_accepted',
-            title: 'Application Accepted! 🎉',
-            body: 'Your application for "$jobTitle" has been accepted.',
-            relatedJobId: jobId,
-          ));
+        if (status == 'assigned') {
+          // Reject all other pending applications for this job in database
+          await _client
+              .from('applications')
+              .update({'status': 'rejected'})
+              .eq('job_id', jobId)
+              .neq('id', applicationId);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ [ApplicationService] Remote application status update failed: $e');
         }
       }
-      return true;
-    } catch (e) {
-      if (kDebugMode) {
-        print(
-            '⚠️ [ApplicationService] Error updating application status: $e');
-      }
-      return true;
     }
+
+    // 3. Update remote job status and notify if jobId is a valid UUID
+    if (_uuidRegExp.hasMatch(jobId)) {
+      try {
+        if (status == 'assigned') {
+          final effectiveWorkerUuid = _uuidRegExp.hasMatch(workerId) ? workerId : null;
+          await JobService().updateJobStatus(
+            jobId: jobId,
+            status: 'assigned',
+            workerName: workerName,
+            assignedWorkerId: effectiveWorkerUuid,
+          );
+
+          // ── Notify worker ────────────────────────────────────────────────
+          final effectiveWorkerId = _uuidRegExp.hasMatch(workerId)
+              ? workerId
+              : _localApplicationsStore
+                      .firstWhere(
+                        (a) => a.id == applicationId,
+                        orElse: () => Application(
+                            id: '',
+                            jobId: jobId,
+                            workerId: '',
+                            workerName: workerName,
+                            workerPhone: '',
+                            status: status,
+                            createdAt: DateTime.now()),
+                      )
+                      .workerId;
+
+          if (_uuidRegExp.hasMatch(effectiveWorkerId)) {
+            // Fetch job title for the notification body
+            final jobCtx = await _fetchJobContext(jobId);
+            final jobTitle = jobCtx['job_title'] ?? 'a job';
+            unawaited(_notif.insertNotification(
+              userId: effectiveWorkerId,
+              type: 'job_accepted',
+              title: 'Application Accepted! 🎉',
+              body: 'Your application for "$jobTitle" has been accepted.',
+              relatedJobId: jobId,
+            ));
+          }
+        } else {
+          // Update job to other status (like completed/etc)
+          await JobService().updateJobStatus(jobId: jobId, status: status);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ [ApplicationService] Remote job status sync failed: $e');
+        }
+      }
+    }
+
+    return true;
   }
 }
 

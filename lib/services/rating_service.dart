@@ -10,13 +10,24 @@ class RatingResult {
   const RatingResult({required this.success, this.errorMessage});
 }
 
+/// Model representing aggregate rating summary from Supabase view or local store.
+class MutualRatingSummary {
+  final int totalRatings;
+  final int thumbsUpCount;
+  final int? thumbsUpPercentage;
+
+  const MutualRatingSummary({
+    required this.totalRatings,
+    required this.thumbsUpCount,
+    this.thumbsUpPercentage,
+  });
+}
+
 /// Service for the dual 👍 / 👎 thumbs-based rating system.
 ///
-/// Writes to public.ratings and atomically increments the target's
-/// rating_thumbs_up or rating_thumbs_down counter on public.profiles.
 class RatingService {
-  final SupabaseClient _client = SupabaseService().client;
-  final NotificationService _notif = NotificationService();
+  SupabaseClient get _client => SupabaseService().client;
+  NotificationService get _notif => NotificationService();
 
   static final RegExp _uuidRegExp = RegExp(
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
@@ -28,37 +39,38 @@ class RatingService {
   /// Submits a 👍 or 👎 rating.
   ///
   /// [jobId]       — UUID of the completed job.
-  /// [evaluatorId] — UUID of the person giving the rating (employer or worker).
-  /// [targetId]    — UUID of the person being rated.
+  /// [raterId]     — UUID of the person giving the rating.
+  /// [rateeId]     — UUID of the person being rated.
+  /// [raterRole]   — Role of the rater ('employer' or 'worker').
   /// [isThumbsUp]  — true = 👍, false = 👎.
-  /// [comments]    — Optional text comment.
   Future<RatingResult> submitRating({
     required String jobId,
-    required String evaluatorId,
-    required String targetId,
+    required String raterId,
+    required String rateeId,
+    required String raterRole,
     required bool isThumbsUp,
-    String? comments,
   }) async {
     final ratingType = isThumbsUp ? 'thumbs_up' : 'thumbs_down';
 
     // Always persist locally for instant UI feedback
     _localStore.removeWhere((r) =>
         r['job_id'] == jobId &&
-        r['evaluator_id'] == evaluatorId &&
-        r['target_id'] == targetId);
+        r['rater_id'] == raterId &&
+        r['ratee_id'] == rateeId);
     _localStore.add({
       'job_id': jobId,
-      'evaluator_id': evaluatorId,
-      'target_id': targetId,
+      'rater_id': raterId,
+      'ratee_id': rateeId,
+      'rater_role': raterRole,
+      'thumbs_up': isThumbsUp,
       'rating_type': ratingType,
-      'comments': comments,
       'created_at': DateTime.now().toIso8601String(),
     });
 
     // Skip DB writes when IDs are non-UUIDs (demo mode)
     if (!_uuidRegExp.hasMatch(jobId) ||
-        !_uuidRegExp.hasMatch(evaluatorId) ||
-        !_uuidRegExp.hasMatch(targetId)) {
+        !_uuidRegExp.hasMatch(raterId) ||
+        !_uuidRegExp.hasMatch(rateeId)) {
       if (kDebugMode) {
         print('ℹ️ [RatingService] Demo mode — rating stored locally only.');
       }
@@ -66,32 +78,24 @@ class RatingService {
     }
 
     try {
-      // 1. Insert rating row (upsert to handle re-submissions gracefully)
-      await _client.from('ratings').upsert({
+      // Insert into new job_ratings table
+      await _client.from('job_ratings').insert({
         'job_id': jobId,
-        'evaluator_id': evaluatorId,
-        'target_id': targetId,
-        'rating_type': ratingType,
-        if (comments != null && comments.trim().isNotEmpty)
-          'comments': comments.trim(),
+        'rater_id': raterId,
+        'ratee_id': rateeId,
+        'rater_role': raterRole,
+        'thumbs_up': isThumbsUp,
       });
-
-      // 2. Atomically increment the target's counter via RPC
-      if (isThumbsUp) {
-        await _client.rpc('increment_thumbs_up', params: {'user_id': targetId});
-      } else {
-        await _client.rpc('increment_thumbs_down', params: {'user_id': targetId});
-      }
 
       if (kDebugMode) {
         print(
-            '✅ [RatingService] Submitted $ratingType for target $targetId on job $jobId');
+            '✅ [RatingService] Submitted thumbs_up=$isThumbsUp for target $rateeId on job $jobId');
       }
 
-      // 3. Fire-and-forget notification to the target user
+      // Fire-and-forget notification to the target user
       final emoji = isThumbsUp ? '👍' : '👎';
       unawaited(_notif.insertNotification(
-        userId: targetId,
+        userId: rateeId,
         type: 'rating_received',
         title: 'You Received a Rating $emoji',
         body: isThumbsUp
@@ -105,7 +109,7 @@ class RatingService {
       // Code 23505 = unique constraint violation (already rated)
       if (e.code == '23505') {
         if (kDebugMode) {
-          print('ℹ️ [RatingService] Already rated this job/target combination.');
+          print('ℹ️ [RatingService] Already rated this job/rater combination.');
         }
         return const RatingResult(
           success: false,
@@ -125,30 +129,27 @@ class RatingService {
     }
   }
 
-  /// Checks if [evaluatorId] has already rated [targetId] for [jobId].
+  /// Checks if [raterId] has already rated for [jobId].
   Future<bool> hasRated({
     required String jobId,
-    required String evaluatorId,
-    required String targetId,
+    required String raterId,
   }) async {
     // Check local store first
     final localMatch = _localStore.any((r) =>
         r['job_id'] == jobId &&
-        r['evaluator_id'] == evaluatorId &&
-        r['target_id'] == targetId);
+        r['rater_id'] == raterId);
     if (localMatch) return true;
 
-    if (!_uuidRegExp.hasMatch(jobId) || !_uuidRegExp.hasMatch(evaluatorId)) {
+    if (!_uuidRegExp.hasMatch(jobId) || !_uuidRegExp.hasMatch(raterId)) {
       return false;
     }
 
     try {
       final res = await _client
-          .from('ratings')
+          .from('job_ratings')
           .select('id')
           .eq('job_id', jobId)
-          .eq('evaluator_id', evaluatorId)
-          .eq('target_id', targetId)
+          .eq('rater_id', raterId)
           .maybeSingle();
       return res != null;
     } catch (_) {
@@ -156,39 +157,61 @@ class RatingService {
     }
   }
 
-  /// Fetches thumbs counters (up, down) for a target user.
-  Future<({int thumbsUp, int thumbsDown})> fetchThumbsCounters(
-      String targetId) async {
-    // Check local store
+  /// Fetches thumbs summary (total ratings, thumbs up count, and percentage) for a user from the view.
+  Future<MutualRatingSummary> fetchThumbsSummary(String targetId) async {
+    // Local store calculations first
     final localUp = _localStore
         .where((r) =>
-            r['target_id'] == targetId && r['rating_type'] == 'thumbs_up')
+            r['ratee_id'] == targetId && r['rating_type'] == 'thumbs_up')
         .length;
     final localDown = _localStore
         .where((r) =>
-            r['target_id'] == targetId && r['rating_type'] == 'thumbs_down')
+            r['ratee_id'] == targetId && r['rating_type'] == 'thumbs_down')
         .length;
+    final localTotal = localUp + localDown;
+    final localPct = localTotal > 0 ? ((localUp / localTotal) * 100).round() : null;
 
     if (!_uuidRegExp.hasMatch(targetId)) {
-      return (thumbsUp: localUp, thumbsDown: localDown);
+      return MutualRatingSummary(
+        totalRatings: localTotal,
+        thumbsUpCount: localUp,
+        thumbsUpPercentage: localPct,
+      );
     }
 
     try {
       final res = await _client
-          .from('profiles')
-          .select('rating_thumbs_up, rating_thumbs_down')
-          .eq('id', targetId)
+          .from('mutual_rating_summary')
+          .select('total_ratings, thumbs_up_count, thumbs_up_percentage')
+          .eq('user_id', targetId)
           .maybeSingle();
 
-      if (res == null) return (thumbsUp: localUp, thumbsDown: localDown);
+      if (res == null) {
+        return MutualRatingSummary(
+          totalRatings: localTotal,
+          thumbsUpCount: localUp,
+          thumbsUpPercentage: localPct,
+        );
+      }
 
-      return (
-        thumbsUp: (res['rating_thumbs_up'] as num?)?.toInt() ?? localUp,
-        thumbsDown:
-            (res['rating_thumbs_down'] as num?)?.toInt() ?? localDown,
+      final dbTotal = (res['total_ratings'] as num?)?.toInt() ?? 0;
+      final dbUp = (res['thumbs_up_count'] as num?)?.toInt() ?? 0;
+
+      final total = dbTotal + localTotal;
+      final upCount = dbUp + localUp;
+      final pct = total > 0 ? ((upCount / total) * 100).round() : null;
+
+      return MutualRatingSummary(
+        totalRatings: total,
+        thumbsUpCount: upCount,
+        thumbsUpPercentage: pct,
       );
     } catch (_) {
-      return (thumbsUp: localUp, thumbsDown: localDown);
+      return MutualRatingSummary(
+        totalRatings: localTotal,
+        thumbsUpCount: localUp,
+        thumbsUpPercentage: localPct,
+      );
     }
   }
 }

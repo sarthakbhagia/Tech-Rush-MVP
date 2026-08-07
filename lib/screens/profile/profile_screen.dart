@@ -504,6 +504,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
             const SizedBox(height: AppSpacing.lg),
 
+            ref.watch(mutualRatingSummaryProvider(user.id ?? '')).when(
+                  data: (summary) {
+                    final hasRatings = summary.totalRatings > 0;
+                    final displayStr = hasRatings
+                        ? '👍 ${summary.thumbsUpPercentage}% (${summary.totalRatings} job${summary.totalRatings == 1 ? "" : "s"})'
+                        : 'No ratings yet';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: AppRadii.card,
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: AppShadows.card,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            hasRatings ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+                            color: AppColors.brand,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Mutual Rating: ',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              color: AppColors.inkMuted,
+                            ),
+                          ),
+                          Text(
+                            displayStr,
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.inkPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                ),
+
             // Section 3: Skills & Certifications Card
             Container(
               padding: const EdgeInsets.all(AppSpacing.lg),

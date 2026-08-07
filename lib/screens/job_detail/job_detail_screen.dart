@@ -18,6 +18,7 @@ import '../../widgets/rate_worker_bottom_sheet.dart';
 import '../../widgets/thumbs_rating_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
 import '../../l10n/app_localizations.dart';
+import '../../providers/review_provider.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -33,6 +34,7 @@ class JobDetailScreen extends ConsumerStatefulWidget {
 
 class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   bool _isApplying = false;
+  bool _isBannerDismissed = false;
 
   Future<void> _handleExpressInterest(Job job) async {
     final user = ref.read(userProfileProvider);
@@ -49,6 +51,19 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       return;
     }
 
+    if (user.isLoggedIn && user.role == 'employer') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.danger,
+          content: Text(
+            'Security violation: Employers are not allowed to apply to jobs.',
+            style: GoogleFonts.inter(color: Colors.white),
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isApplying = true);
 
     // Resolve the real UUID — prefer live Supabase session over provider state
@@ -56,49 +71,64 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         (user.id?.isNotEmpty == true ? user.id! : null) ??
         (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
 
-    final app = await ref.read(applicationServiceProvider).applyToJob(
-          jobId: job.id,
-          workerId: resolvedId,
-          workerName: user.name.isNotEmpty
-              ? user.name
-              : (liveUser?.email?.split('@').first ?? 'Worker'),
-          workerPhone: user.phone.isNotEmpty ? user.phone : '',
-        );
+    try {
+      final app = await ref.read(applicationServiceProvider).applyToJob(
+            jobId: job.id,
+            workerId: resolvedId,
+            workerName: user.name.isNotEmpty
+                ? user.name
+                : (liveUser?.email?.split('@').first ?? 'Worker'),
+            workerPhone: user.phone.isNotEmpty ? user.phone : '',
+          );
 
-    if (mounted) {
-      setState(() => _isApplying = false);
-      if (app != null) {
-        ref.invalidate(jobApplicationsProvider(job.id));
-        ref.invalidate(jobDetailProvider(job.id));
+      if (mounted) {
+        setState(() => _isApplying = false);
+        if (app != null) {
+          ref.invalidate(jobApplicationsProvider(job.id));
+          ref.invalidate(jobDetailProvider(job.id));
 
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: AppColors.surface,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: AppRadii.card,
+                side: const BorderSide(color: AppColors.brand),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Application Submitted!',
+                    style: GoogleFonts.spaceMono(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.brand,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Your interest has been dispatched to ${job.employerName}.',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: AppColors.inkPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isApplying = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: AppColors.surface,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadii.card,
-              side: const BorderSide(color: AppColors.brand),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Application Submitted!',
-                  style: GoogleFonts.spaceMono(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.brand,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Your interest has been dispatched to ${job.employerName}.',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.inkPrimary,
-                  ),
-                ),
-              ],
+            backgroundColor: AppColors.danger,
+            content: Text(
+              'Failed to apply: ${e.toString().replaceAll('Exception: ', '')}',
+              style: GoogleFonts.inter(color: Colors.white),
             ),
           ),
         );
@@ -207,6 +237,118 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Mutual Rating Banner
+                if (isCompleted && !_isBannerDismissed)
+                  (() {
+                    final assignedApps = applications.where((a) => a.status == 'assigned').toList();
+                    final assignedApp = assignedApps.isNotEmpty ? assignedApps.first : null;
+
+                    if (assignedApp == null) return const SizedBox.shrink();
+
+                    final raterId = liveUid ?? user.id ?? '';
+                    final bool isEmployer = (liveUid != null && liveUid == job.employerId) ||
+                                           (user.id != null && user.id == job.employerId) ||
+                                           (user.role == 'employer' && job.employerId == null);
+                    final bool isWorker = liveUid == assignedApp.workerId || user.id == assignedApp.workerId;
+
+                    if (!isEmployer && !isWorker) return const SizedBox.shrink();
+
+                    final rateeName = isEmployer ? assignedApp.workerName : job.employerName;
+                    final rateeId = isEmployer ? assignedApp.workerId : (job.employerId ?? '');
+                    final raterRole = isEmployer ? 'employer' : 'worker';
+
+                    return ref.watch(hasRatedProvider((jobId: job.id, raterId: raterId))).when(
+                      data: (hasRated) {
+                        if (hasRated) return const SizedBox.shrink();
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                          padding: const EdgeInsets.all(AppSpacing.md),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: AppRadii.card,
+                            border: Border.all(color: AppColors.brand.withOpacity(0.5)),
+                            boxShadow: AppShadows.card,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.star_rounded, color: AppColors.brand, size: 16),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'RATE YOUR EXPERIENCE',
+                                        style: GoogleFonts.spaceMono(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.brand,
+                                          letterSpacing: 0.8,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.inkMuted),
+                                    onPressed: () {
+                                      setState(() {
+                                        _isBannerDismissed = true;
+                                      });
+                                    },
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'How was your experience with $rateeName?',
+                                style: GoogleFonts.sora(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.inkPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  _thumbsButton(
+                                    context,
+                                    ref,
+                                    label: 'Good 👍',
+                                    isUp: true,
+                                    jobId: job.id,
+                                    raterId: raterId,
+                                    rateeId: rateeId,
+                                    rateeName: rateeName,
+                                    raterRole: raterRole,
+                                  ),
+                                  const SizedBox(width: AppSpacing.md),
+                                  _thumbsButton(
+                                    context,
+                                    ref,
+                                    label: 'Bad 👎',
+                                    isUp: false,
+                                    jobId: job.id,
+                                    raterId: raterId,
+                                    rateeId: rateeId,
+                                    rateeName: rateeName,
+                                    raterRole: raterRole,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (_, __) => const SizedBox.shrink(),
+                    );
+                  })(),
+
                 // Header Card
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
@@ -358,6 +500,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   phone: '+91 98765 00000',
                   isVerified: job.verified,
                   isAssigned: isAssigned,
+                  rateeId: job.employerId,
                 ),
                 const SizedBox(height: AppSpacing.xl),
 
@@ -573,6 +716,92 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               : (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
           final hasApplied = applications.any((a) => a.workerId == bottomWorkerId);
           final isAssigned = job.status == 'assigned';
+          final isCompleted = job.status == 'completed';
+
+          final liveUid = SupabaseService().client.auth.currentUser?.id;
+          final loggedInEmployer = user.isLoggedIn && user.role == 'employer';
+          final isOwner = (liveUid != null && liveUid == job.employerId) ||
+                          (user.id != null && user.id == job.employerId);
+
+          if (loggedInEmployer) {
+            if (isOwner) {
+              if (isAssigned) {
+                return StickyBottomBar(
+                  label: 'STATUS: ASSIGNED',
+                  price: job.wage,
+                  ctaLabel: 'Mark Job as Completed',
+                  isLoading: false,
+                  disabled: false,
+                  icon: const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
+                  onCta: () async {
+                    final success = await ref.read(jobServiceProvider).updateJobStatus(
+                          jobId: job.id,
+                          status: 'completed',
+                        );
+                    if (success) {
+                      ref.invalidate(jobDetailProvider(job.id));
+                      ref.invalidate(jobsByCategoryProvider);
+                      ref.invalidate(filteredJobsProvider);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: AppColors.brand,
+                            content: Text(
+                              'Job marked as completed!',
+                              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                );
+              } else if (isCompleted) {
+                return StickyBottomBar(
+                  label: 'STATUS: COMPLETED',
+                  price: job.wage,
+                  ctaLabel: 'Job Completed',
+                  isLoading: false,
+                  disabled: true,
+                  icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
+                  onCta: () {},
+                );
+              } else {
+                return StickyBottomBar(
+                  label: 'STATUS: OPEN',
+                  price: job.wage,
+                  ctaLabel: 'Awaiting Applicants...',
+                  isLoading: false,
+                  disabled: true,
+                  icon: const Icon(Icons.people_outline_rounded, size: 16, color: Colors.white),
+                  onCta: () {},
+                );
+              }
+            } else {
+              // Viewing someone else's job as an employer
+              return StickyBottomBar(
+                label: 'DAILY RATE',
+                price: job.wage,
+                ctaLabel: 'Employer Mode',
+                isLoading: false,
+                disabled: true,
+                icon: const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.white),
+                onCta: () {},
+              );
+            }
+          }
+
+          if (isCompleted) {
+            return StickyBottomBar(
+              label: 'STATUS: COMPLETED',
+              price: job.wage,
+              ctaLabel: 'Job Completed',
+              isLoading: false,
+              disabled: true,
+              icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
+              onCta: () {},
+            );
+          }
 
           return StickyBottomBar(
             label: 'DAILY RATE',
@@ -622,6 +851,77 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _thumbsButton(
+    BuildContext context,
+    WidgetRef ref, {
+    required String label,
+    required bool isUp,
+    required String jobId,
+    required String raterId,
+    required String rateeId,
+    required String rateeName,
+    required String raterRole,
+  }) {
+    return ElevatedButton(
+      onPressed: () async {
+        final service = ref.read(ratingServiceProvider);
+        final result = await service.submitRating(
+          jobId: jobId,
+          raterId: raterId,
+          rateeId: rateeId,
+          raterRole: raterRole,
+          isThumbsUp: isUp,
+        );
+
+        if (result.success) {
+          ref.invalidate(hasRatedProvider((jobId: jobId, raterId: raterId)));
+          ref.invalidate(mutualRatingSummaryProvider(rateeId));
+          ref.invalidate(userProfileProvider);
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.success,
+                content: Text(
+                  isUp ? '👍 Rated $rateeName positively!' : '👎 Feedback submitted.',
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                ),
+              ),
+            );
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: AppColors.danger,
+                content: Text(
+                  result.errorMessage ?? 'Failed to submit rating.',
+                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                ),
+              ),
+            );
+          }
+        }
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isUp ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadii.pill,
+        ),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.spaceMono(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

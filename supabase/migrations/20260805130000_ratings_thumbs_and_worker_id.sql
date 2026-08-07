@@ -18,7 +18,9 @@ CREATE INDEX IF NOT EXISTS idx_jobs_assigned_worker ON public.jobs(assigned_work
 -- -------------------------------------------------------------------------
 -- 3. Create ratings table (thumbs-up / thumbs-down per completed job)
 -- -------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.ratings (
+DROP TABLE IF EXISTS public.ratings CASCADE;
+
+CREATE TABLE public.ratings (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     job_id          UUID NOT NULL REFERENCES public.jobs(id)     ON DELETE CASCADE,
     evaluator_id    UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,

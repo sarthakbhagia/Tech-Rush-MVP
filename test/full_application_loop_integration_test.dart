@@ -97,7 +97,7 @@ void main() {
       wrkUser = client.auth.currentUser;
     }
 
-    final wrkId = wrkUser?.id ?? '00000000-0000-0000-0000-000000000002';
+    final wrkId = wrkUser?.id ?? 'f0000000-0000-0000-0000-000000000001';
 
     if (client.auth.currentUser != null) {
       await client.from('profiles').upsert({

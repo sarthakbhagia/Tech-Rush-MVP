@@ -127,7 +127,10 @@ class JobService {
 
       final res = await query.order(orderColumn, ascending: ascending);
       final List data = res as List;
-      final jobs = data.map((json) => Job.fromJson(json)).toList();
+      final jobs = data.map((json) {
+        final job = Job.fromJson(json);
+        return _localJobsOverrides[job.id] ?? job;
+      }).toList();
       return jobs;
     } catch (e) {
       if (kDebugMode) {
@@ -160,7 +163,10 @@ class JobService {
           .eq('employer_id', employerId)
           .order('created_at', ascending: false);
       final List data = res as List;
-      return data.map((json) => Job.fromJson(json)).toList();
+      return data.map((json) {
+        final job = Job.fromJson(json);
+        return _localJobsOverrides[job.id] ?? job;
+      }).toList();
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [JobService] Error fetching jobs for employer ($employerId): $e');
@@ -171,6 +177,10 @@ class JobService {
 
   /// Fetches single job details by ID from Supabase
   Future<Job?> fetchJobById(String jobId) async {
+    if (_localJobsOverrides.containsKey(jobId)) {
+      return _localJobsOverrides[jobId];
+    }
+
     if (!_uuidRegExp.hasMatch(jobId)) {
       try {
         return mockJobs.firstWhere((j) => j.id == jobId);
@@ -192,24 +202,34 @@ class JobService {
     }
   }
 
-  /// Updates status of a job ('open', 'assigned', 'completed') in Supabase.
-  /// When status becomes 'completed' → inserts notifications:
-  ///   - Worker: job_completed ("Your job is complete")
-  ///   - Employer: rate_worker ("Please rate your worker")
+  static final Map<String, Job> _localJobsOverrides = {};
+
   Future<bool> updateJobStatus({
     required String jobId,
     required String status,
     String? workerName,
+    String? assignedWorkerId,
   }) async {
+    // Update local override
+    final existingJob = await fetchJobById(jobId);
+    if (existingJob != null) {
+      final updated = existingJob.copyWith(
+        status: status,
+        workerName: workerName ?? existingJob.workerName,
+      );
+      _localJobsOverrides[jobId] = updated;
+    }
+
     if (!_uuidRegExp.hasMatch(jobId)) {
       return true;
     }
 
     try {
-      final payload = <String, dynamic>{'status': status};
-      if (workerName != null && workerName.isNotEmpty) {
-        payload['worker_name'] = workerName;
-      }
+      final payload = <String, dynamic>{
+        'status': status,
+        if (workerName != null && workerName.isNotEmpty) 'worker_name': workerName,
+        if (assignedWorkerId != null && assignedWorkerId.isNotEmpty) 'assigned_worker_id': assignedWorkerId,
+      };
 
       await _client.from('jobs').update(payload).eq('id', jobId);
       if (kDebugMode) {

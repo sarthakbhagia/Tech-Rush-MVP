@@ -69,15 +69,8 @@ class ThumbsRatingBottomSheet extends ConsumerStatefulWidget {
 class _ThumbsRatingBottomSheetState
     extends ConsumerState<ThumbsRatingBottomSheet> {
   bool? _selectedThumb; // null = not selected, true = 👍, false = 👎
-  final TextEditingController _commentController = TextEditingController();
   bool _isSubmitting = false;
   bool _submitted = false;
-
-  @override
-  void dispose() {
-    _commentController.dispose();
-    super.dispose();
-  }
 
   Future<void> _handleSubmit() async {
     if (_selectedThumb == null) {
@@ -98,12 +91,10 @@ class _ThumbsRatingBottomSheetState
     final service = ref.read(ratingServiceProvider);
     final result = await service.submitRating(
       jobId: widget.jobId,
-      evaluatorId: widget.evaluatorId,
-      targetId: widget.targetId,
+      raterId: widget.evaluatorId,
+      rateeId: widget.targetId,
+      raterRole: widget.raterRole,
       isThumbsUp: _selectedThumb!,
-      comments: _commentController.text.trim().isNotEmpty
-          ? _commentController.text.trim()
-          : null,
     );
 
     if (!mounted) return;
@@ -114,8 +105,8 @@ class _ThumbsRatingBottomSheetState
         _submitted = true;
       });
 
-      // Invalidate thumbs counter so profile screens refresh
-      ref.invalidate(thumbsCountersProvider(widget.targetId));
+      // Invalidate thumbs summary so profile screens refresh
+      ref.invalidate(mutualRatingSummaryProvider(widget.targetId));
 
       await Future.delayed(const Duration(milliseconds: 1200));
       if (mounted) Navigator.pop(context);
@@ -352,45 +343,6 @@ class _ThumbsRatingBottomSheetState
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-
-              // Optional comment
-              Text(
-                'OPTIONAL COMMENT',
-                style: GoogleFonts.spaceMono(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.inkMuted,
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextField(
-                controller: _commentController,
-                maxLines: 3,
-                style: GoogleFonts.inter(
-                  fontSize: 13,
-                  color: AppColors.inkPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: isEmployerRating
-                      ? 'Share feedback about quality, punctuality, work standards...'
-                      : 'Share feedback about the household, clarity of instructions...',
-                  hintStyle: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: AppColors.inkMuted,
-                  ),
-                  fillColor: AppColors.canvas,
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: AppRadii.control,
-                    borderSide: const BorderSide(color: AppColors.border),
-                  ),
-                ),
               ),
               const SizedBox(height: AppSpacing.xl),
 

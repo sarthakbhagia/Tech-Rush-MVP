@@ -23,10 +23,16 @@ final workerReviewsProvider =
   return service.fetchReviewsForWorker(workerId);
 });
 
-/// Holds the thumbs counters (up, down) for a given user ID.
-final thumbsCountersProvider =
-    FutureProvider.family<({int thumbsUp, int thumbsDown}), String>(
-        (ref, userId) async {
+/// Holds the mutual thumbs rating summary for a given user ID.
+final mutualRatingSummaryProvider =
+    FutureProvider.family<MutualRatingSummary, String>((ref, userId) async {
   final service = ref.watch(ratingServiceProvider);
-  return service.fetchThumbsCounters(userId);
+  return service.fetchThumbsSummary(userId);
+});
+
+/// Checks if a rater has already rated a job.
+final hasRatedProvider =
+    FutureProvider.family<bool, ({String jobId, String raterId})>((ref, arg) async {
+  final service = ref.watch(ratingServiceProvider);
+  return service.hasRated(jobId: arg.jobId, raterId: arg.raterId);
 });

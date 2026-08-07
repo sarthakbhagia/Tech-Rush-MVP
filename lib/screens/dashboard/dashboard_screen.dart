@@ -114,6 +114,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
     final stats = statsAsync.valueOrNull ?? const DashboardStats();
 
+    final dashboardJobsAsync = isEmployer
+        ? ref.watch(jobsByEmployerProvider(currentUserId))
+        : ref.watch(jobsByCategoryProvider('All'));
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
@@ -797,7 +801,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(height: AppSpacing.md),
 
-                      ref.watch(jobsByCategoryProvider('All')).when(
+                      dashboardJobsAsync.when(
                             data: (jobs) {
                               if (jobs.isEmpty) {
                                 return const EmptyState(

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../providers/review_provider.dart';
 
-class ProviderCard extends StatelessWidget {
+class ProviderCard extends ConsumerWidget {
   final String name;
   final String primarySkill;
   final List<String> skills;
@@ -20,6 +22,7 @@ class ProviderCard extends StatelessWidget {
   final VoidCallback? onHire;
   final VoidCallback? onCall;
   final VoidCallback? onMessage;
+  final String? rateeId;
 
   const ProviderCard({
     super.key,
@@ -38,6 +41,7 @@ class ProviderCard extends StatelessWidget {
     this.onHire,
     this.onCall,
     this.onMessage,
+    this.rateeId,
   });
 
   double get effectiveRate => dailyRate ?? wage ?? 650.0;
@@ -84,7 +88,7 @@ class ProviderCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       margin: const EdgeInsets.only(bottom: AppSpacing.md),
       padding: const EdgeInsets.all(AppSpacing.md + 2),
@@ -208,6 +212,37 @@ class ProviderCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (rateeId != null) ...[
+                      const SizedBox(height: 4),
+                      ref.watch(mutualRatingSummaryProvider(rateeId!)).when(
+                        data: (summary) {
+                          final hasRatings = summary.totalRatings > 0;
+                          final displayStr = hasRatings
+                              ? '👍 ${summary.thumbsUpPercentage}% (${summary.totalRatings} job${summary.totalRatings == 1 ? "" : "s"})'
+                              : 'No ratings yet';
+                          return Row(
+                            children: [
+                              Icon(
+                                hasRatings ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+                                size: 11.0,
+                                color: AppColors.brand,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                displayStr,
+                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                      fontSize: 11.0,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.inkPrimary,
+                                    ),
+                              ),
+                            ],
+                          );
+                        },
+                        loading: () => const SizedBox.shrink(),
+                        error: (_, __) => const SizedBox.shrink(),
+                      ),
+                    ],
                   ],
                 ),
               ),
