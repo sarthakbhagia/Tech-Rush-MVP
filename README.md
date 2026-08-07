@@ -48,6 +48,83 @@ KaamSetu digitizes daily labor dispatch into a clean, mobile-first experience:
 
 ---
 
+## System Architecture
+
+```mermaid
+graph TD
+   graph TD
+    %% User Devices / Platforms
+    subgraph Platforms["1. Cross-Platform Frontend (Flutter & Dart)"]
+        A[Android App]
+        B[iOS App]
+        C[Web Application]
+    end
+
+    %% UI & Navigation Layer
+    subgraph UI_Layer["2. Presentation Layer"]
+        DS["Tokenized Design System<br/>(Colors, Typography, Spacing)"]
+        GR["GoRouter + ShellRoute<br/>(Persistent Bottom Nav & Mode Switcher)"]
+        
+        EM["Employer Mode Screens<br/>(Post Jobs, View Applicants)"]
+        WM["Worker Mode Screens<br/>(Find Jobs, Manage Applications)"]
+    end
+
+    %% State Management Layer
+    subgraph State_Layer["3. State Management (Riverpod)"]
+        RP["Riverpod State Providers"]
+        AuthProv["Auth State Provider"]
+        JobProv["Job Data Provider"]
+        ModeProv["App Mode Provider<br/>(Employer / Worker)"]
+    end
+
+    %% Backend Services (Supabase)
+    subgraph Backend["4. Backend & Database (Supabase)"]
+        S_Auth["Supabase Auth"]
+        S_API["Supabase REST / Realtime API"]
+        
+        subgraph Postgres["PostgreSQL Database"]
+            RLS["Row Level Security (RLS) Layer"]
+            DB_Jobs[("Jobs & Assignments Table")]
+            DB_Users[("Users & Worker Profiles Table")]
+        end
+    end
+
+    %% Connections
+    Platforms --> DS
+    DS --> GR
+    GR --> EM
+    GR --> WM
+
+    EM --> RP
+    WM --> RP
+
+    RP --> AuthProv
+    RP --> JobProv
+    RP --> ModeProv
+
+    AuthProv --> S_Auth
+    JobProv --> S_API
+
+    S_Auth --> RLS
+    S_API --> RLS
+
+    RLS --> DB_Jobs
+    RLS --> DB_Users
+
+    %% Styling / Aesthetics
+    classDef frontend fill:#02569B,stroke:#0175C2,color:#FFFFFF;
+    classDef router fill:#13B9FD,stroke:#0175C2,color:#000000;
+    classDef state fill:#42A5F5,stroke:#1E88E5,color:#FFFFFF;
+    classDef backend fill:#3ECF8E,stroke:#24B47E,color:#000000;
+    classDef db fill:#2496ED,stroke:#000000,color:#FFFFFF;
+
+    class A,B,C frontend;
+    class GR,DS router;
+    class RP,AuthProv,JobProv,ModeProv state;
+    class S_Auth,S_API backend;
+    class RLS,DB_Jobs,DB_Users db;
+```
+
 ## Project Structure
 
 ```
