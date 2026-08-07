@@ -38,6 +38,15 @@ class SupabaseService {
     }
   }
 
+  static bool get isInitialized {
+    try {
+      Supabase.instance;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   SupabaseClient get client => Supabase.instance.client;
 
   /// Helper to verify backend network ping / connection

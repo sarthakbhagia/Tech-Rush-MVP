@@ -4,6 +4,7 @@ import '../models/application.dart';
 import '../services/job_service.dart';
 import '../services/application_service.dart';
 import '../services/dashboard_stats_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final jobServiceProvider = Provider<JobService>((ref) => JobService());
 final applicationServiceProvider = Provider<ApplicationService>((ref) => ApplicationService());
@@ -138,3 +139,21 @@ final dashboardStatsProvider =
     }
   },
 );
+
+/// Fetches all active distinct custom category names from the database (not in standard six).
+final customCategoriesProvider = FutureProvider<List<String>>((ref) async {
+  try {
+    final client = Supabase.instance.client;
+    final res = await client.from('jobs').select('category');
+    final data = res as List;
+    final allCats = data.map((json) => json['category']?.toString() ?? '').toList();
+    final fixedCats = {'Painting', 'Cleaning', 'Plumbing', 'Cooking', 'Gardening', 'Electrical'};
+    final customCats = allCats
+        .where((c) => c.isNotEmpty && !fixedCats.contains(c))
+        .toSet()
+        .toList();
+    return customCats;
+  } catch (_) {
+    return [];
+  }
+});

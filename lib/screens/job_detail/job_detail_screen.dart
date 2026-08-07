@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme.dart';
 import '../../core/spacing.dart';
 import '../../models/job.dart';
+import 'package:kaamsetu/models/user_profile.dart';
 import '../../models/application.dart';
+import '../../models/job_category.dart';
 import '../../providers/job_provider.dart';
 import '../../providers/user_provider.dart';
 import '../../services/supabase_service.dart';
@@ -14,7 +16,6 @@ import '../../widgets/status_chip.dart';
 import '../../widgets/trust_badge_row.dart';
 import '../../widgets/provider_card.dart';
 import '../../widgets/sticky_bottom_bar.dart';
-import '../../widgets/rate_worker_bottom_sheet.dart';
 import '../../widgets/thumbs_rating_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
 import '../../l10n/app_localizations.dart';
@@ -164,6 +165,34 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     }
   }
 
+  Future<void> _handleRejectApplication(Application app, Job job) async {
+    final success = await ref
+        .read(applicationServiceProvider)
+        .updateApplicationStatus(
+          applicationId: app.id,
+          jobId: job.id,
+          workerName: app.workerName,
+          workerId: app.workerId,
+          status: 'rejected',
+        );
+
+    if (mounted && success) {
+      ref.invalidate(jobApplicationsProvider(job.id));
+      ref.invalidate(jobDetailProvider(job.id));
+      ref.invalidate(jobsByCategoryProvider);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.brand,
+          content: Text(
+            'Rejected ${app.workerName}\'s application.',
+            style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -231,12 +260,37 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               (user.id?.isNotEmpty == true ? user.id! : null) ??
               (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
           final hasApplied = applications.any((a) => a.workerId == currentWorkerId);
+          final employerProfileAsync = job.employerId != null && job.employerId!.isNotEmpty
+              ? ref.watch(profileDetailsProvider(job.employerId!))
+              : null;
+          final employerPhotoUrl = employerProfileAsync?.valueOrNull?['photo_url'] as String?;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Job Image / Category Fallback Hero Image
+                Container(
+                  width: double.infinity,
+                  height: 180,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: AppRadii.card,
+                    border: Border.all(color: AppColors.border),
+                    boxShadow: AppShadows.card,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: job.imageUrl != null && job.imageUrl!.isNotEmpty
+                      ? Image.network(
+                          job.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              _buildDetailCategoryFallback(job.category),
+                        )
+                      : _buildDetailCategoryFallback(job.category),
+                ),
                 // Mutual Rating Banner
                 if (isCompleted && !_isBannerDismissed)
                   (() {
@@ -491,6 +545,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 const SizedBox(height: AppSpacing.sm),
                 ProviderCard(
                   name: job.employerName,
+                  photoUrl: employerPhotoUrl,
                   primarySkill: 'Verified Employer',
                   skills: const ['Households', 'Dispatch Owner'],
                   wage: job.wage,
@@ -533,159 +588,54 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   Column(
                     children: applications.map((app) {
                       final isSelected = app.status == 'assigned';
-                      // Determine whether the current viewer is the employer
                       final liveUid = SupabaseService().client.auth.currentUser?.id;
-                      final viewerIsEmployer = liveUid == job.employerId ||
-                          user.role == 'employer';
-                      // Determine whether current viewer is this specific applicant
-                      final viewerIsThisWorker = liveUid == app.workerId ||
-                          user.id == app.workerId;
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: isSelected ? AppColors.brandSubtle : AppColors.surface,
-                          borderRadius: AppRadii.card,
-                          border: Border.all(
-                            color: isSelected ? AppColors.brand : AppColors.border,
-                          ),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Avatar — show photo_url if available
-                            _WorkerAvatar(workerId: app.workerId),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    app.workerName,
-                                    style: GoogleFonts.sora(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.inkPrimary,
-                                    ),
-                                  ),
-                                  Text(
-                                    // Show phone only to employer after assignment
-                                    isSelected && viewerIsEmployer
-                                        ? '${app.workerPhone} • ${app.status.toUpperCase()}'
-                                        : app.status.toUpperCase(),
-                                    style: GoogleFonts.spaceMono(
-                                      fontSize: 10,
-                                      color: isSelected
-                                          ? AppColors.brand
-                                          : AppColors.inkMuted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            // Action buttons
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                if (!isAssigned &&
-                                    app.status != 'rejected' &&
-                                    viewerIsEmployer)
-                                  ElevatedButton(
-                                    onPressed: () =>
-                                        _handleAcceptApplication(app, job),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.brand,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: AppRadii.pill,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
-                                    ),
-                                    child: Text(
-                                      l10n.jobDetailAcceptCta,
-                                      style: GoogleFonts.spaceMono(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  )
-                                else if (isSelected) ...[
-                                  // Status badge
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.brand,
-                                      borderRadius: AppRadii.pill,
-                                    ),
-                                    child: Text(
-                                      isCompleted ? 'COMPLETED' : 'ASSIGNED',
-                                      style: GoogleFonts.spaceMono(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-
-                                  // Employer: Rate Worker button
-                                  if (viewerIsEmployer)
-                                    GestureDetector(
-                                      onTap: () async {
-                                        if (!isCompleted) {
-                                          await ref
-                                              .read(jobServiceProvider)
-                                              .updateJobStatus(
-                                                  jobId: job.id,
-                                                  status: 'completed');
-                                          ref.invalidate(
-                                              jobDetailProvider(job.id));
-                                          ref.invalidate(jobsByCategoryProvider);
-                                          ref.invalidate(filteredJobsProvider);
-                                        }
-                                        if (mounted) {
-                                          openThumbsRatingBottomSheet(
-                                            context,
-                                            ref,
-                                            jobId: job.id,
-                                            evaluatorId: liveUid ?? user.id ?? '',
-                                            targetId: app.workerId,
-                                            targetName: app.workerName,
-                                            raterRole: 'employer',
-                                            employerId: job.employerId ?? '',
-                                            workerId: app.workerId,
-                                          );
-                                        }
-                                      },
-                                      child: _rateButton('Rate Worker 👍'),
-                                    ),
-
-                                  // Worker: Rate Employer button
-                                  if (viewerIsThisWorker && isCompleted)
-                                    GestureDetector(
-                                      onTap: () {
-                                        openThumbsRatingBottomSheet(
-                                          context,
-                                          ref,
-                                          jobId: job.id,
-                                          evaluatorId: liveUid ?? user.id ?? '',
-                                          targetId: job.employerId ?? '',
-                                          targetName: job.employerName,
-                                          raterRole: 'worker',
-                                          employerId: job.employerId ?? '',
-                                          workerId: app.workerId,
-                                        );
-                                      },
-                                      child: _rateButton('Rate Employer 👍'),
-                                    ),
-                                ],
-                              ],
-                            ),
-                          ],
-                        ),
+                      return _ApplicantRow(
+                        app: app,
+                        job: job,
+                        user: user,
+                        isSelected: isSelected,
+                        isAssigned: isAssigned,
+                        onAccept: () => _handleAcceptApplication(app, job),
+                        onReject: () => _handleRejectApplication(app, job),
+                        onRateWorker: () async {
+                          if (!isCompleted) {
+                            await ref
+                                .read(jobServiceProvider)
+                                .updateJobStatus(
+                                    jobId: job.id,
+                                    status: 'completed');
+                            ref.invalidate(jobDetailProvider(job.id));
+                            ref.invalidate(jobsByCategoryProvider);
+                            ref.invalidate(filteredJobsProvider);
+                          }
+                          if (mounted) {
+                            openThumbsRatingBottomSheet(
+                              context,
+                              ref,
+                              jobId: job.id,
+                              evaluatorId: liveUid ?? user.id ?? '',
+                              targetId: app.workerId,
+                              targetName: app.workerName,
+                              raterRole: 'employer',
+                              employerId: job.employerId ?? '',
+                              workerId: app.workerId,
+                            );
+                          }
+                        },
+                        onRateEmployer: () {
+                          openThumbsRatingBottomSheet(
+                            context,
+                            ref,
+                            jobId: job.id,
+                            evaluatorId: liveUid ?? user.id ?? '',
+                            targetId: job.employerId ?? '',
+                            targetName: job.employerName,
+                            raterRole: 'worker',
+                            employerId: job.employerId ?? '',
+                            workerId: app.workerId,
+                          );
+                        },
                       );
                     }).toList(),
                   ),
@@ -828,6 +778,37 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     );
   }
 
+  Widget _buildDetailCategoryFallback(String category) {
+    final catObj = AppCategories.findById(category);
+    final icon = catObj?.icon ?? Icons.work_outline_rounded;
+    final prefix = category.length >= 3 ? category.substring(0, 3).toUpperCase() : category.toUpperCase();
+    
+    return Container(
+      color: AppColors.surfaceRaised,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 48,
+              color: AppColors.brand,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              prefix,
+              style: GoogleFonts.spaceMono(
+                fontSize: 16.0,
+                fontWeight: FontWeight.bold,
+                color: AppColors.inkMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildRequirementRow(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -925,33 +906,6 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ),
     );
   }
-
-  Widget _rateButton(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
-        borderRadius: AppRadii.pill,
-        border: Border.all(color: AppColors.warning),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.thumb_up_alt_outlined,
-              size: 12, color: AppColors.warning),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: GoogleFonts.spaceMono(
-              fontSize: 9.5,
-              fontWeight: FontWeight.bold,
-              color: AppColors.warning,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 /// Loads and displays a worker's avatar from Supabase profiles.
@@ -969,7 +923,7 @@ class _WorkerAvatar extends ConsumerWidget {
       return _fallbackAvatar('?');
     }
 
-    final profileAsync = ref.watch(_workerPhotoProvider(workerId));
+    final profileAsync = ref.watch(profileDetailsProvider(workerId));
     return profileAsync.when(
       data: (data) {
         final photoUrl = data['photo_url'] as String?;
@@ -1016,15 +970,16 @@ class _WorkerAvatar extends ConsumerWidget {
   }
 }
 
-/// Provider that fetches only photo_url + name for a worker's profile.
-final _workerPhotoProvider =
-    FutureProvider.family<Map<String, dynamic>, String>((ref, workerId) async {
+/// Provider that fetches photo_url + name for any user profile by ID.
+final profileDetailsProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, userId) async {
   try {
+    if (userId.isEmpty) return {};
     final client = SupabaseService().client;
     final res = await client
         .from('profiles')
         .select('full_name, photo_url')
-        .eq('id', workerId)
+        .eq('id', userId)
         .maybeSingle();
     if (res == null) return {};
     return {
@@ -1035,3 +990,224 @@ final _workerPhotoProvider =
     return {};
   }
 });
+
+/// Deterministic rating helper function based on name hash
+double getHardcodedWorkerRating(String name) {
+  if (name.isEmpty) return 4.5;
+  final code = name.codeUnits.fold<int>(0, (sum, val) => sum + val);
+  return 4.0 + (code % 10) / 10.0;
+}
+
+class _ApplicantRow extends ConsumerWidget {
+  final Application app;
+  final Job job;
+  final UserProfile user;
+  final bool isSelected;
+  final bool isAssigned;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+  final VoidCallback onRateWorker;
+  final VoidCallback onRateEmployer;
+
+  const _ApplicantRow({
+    required this.app,
+    required this.job,
+    required this.user,
+    required this.isSelected,
+    required this.isAssigned,
+    required this.onAccept,
+    required this.onReject,
+    required this.onRateWorker,
+    required this.onRateEmployer,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(profileDetailsProvider(app.workerId));
+    final liveUid = SupabaseService().client.auth.currentUser?.id;
+    final viewerIsEmployer = liveUid == job.employerId || user.role == 'employer';
+    final viewerIsThisWorker = liveUid == app.workerId || user.id == app.workerId;
+    final isCompleted = job.status == 'completed';
+
+    return profileAsync.when(
+      data: (profileData) {
+        final realName = profileData['name'] as String?;
+        final workerName = realName != null && realName.isNotEmpty ? realName : app.workerName;
+        final rating = getHardcodedWorkerRating(workerName);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: const EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.brandSubtle : AppColors.surface,
+            borderRadius: AppRadii.card,
+            border: Border.all(
+              color: isSelected ? AppColors.brand : AppColors.border,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _WorkerAvatar(workerId: app.workerId),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            workerName,
+                            style: GoogleFonts.sora(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.inkPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFFBEB),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: const Color(0xFFFEF3C7)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, size: 10, color: AppColors.warning),
+                              const SizedBox(width: 2),
+                              Text(
+                                rating.toStringAsFixed(1),
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFFB45309),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isSelected && viewerIsEmployer
+                          ? '${app.workerPhone} • ${app.status.toUpperCase()}'
+                          : app.status.toUpperCase(),
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 10,
+                        color: isSelected ? AppColors.brand : AppColors.inkMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (!isAssigned && app.status != 'rejected' && viewerIsEmployer) ...[
+                    ElevatedButton(
+                      onPressed: onAccept,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.brand,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadii.pill,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      child: const Text(
+                        'Accept',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    OutlinedButton(
+                      onPressed: onReject,
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.danger),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: AppRadii.pill,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      ),
+                      child: const Text(
+                        'Reject',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ),
+                  ] else if (isSelected) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        borderRadius: AppRadii.pill,
+                      ),
+                      child: Text(
+                        isCompleted ? 'COMPLETED' : 'ASSIGNED',
+                        style: GoogleFonts.spaceMono(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    if (viewerIsEmployer)
+                      GestureDetector(
+                        onTap: onRateWorker,
+                        child: _buildMiniRateButton('Rate Worker 👍'),
+                      ),
+                    if (viewerIsThisWorker && isCompleted)
+                      GestureDetector(
+                        onTap: onRateEmployer,
+                        child: _buildMiniRateButton('Rate Employer 👍'),
+                      ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox(
+        height: 60,
+        child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildMiniRateButton(String label) {
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.brand),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.spaceMono(
+          fontSize: 9.5,
+          fontWeight: FontWeight.bold,
+          color: AppColors.brand,
+        ),
+      ),
+    );
+  }
+}

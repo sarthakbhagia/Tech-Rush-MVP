@@ -33,8 +33,6 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  List<String> get _categories => AppCategories.categoryIdsWithAll;
-
   @override
   void initState() {
     super.initState();
@@ -150,6 +148,9 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
     final filterState = ref.watch(jobFilterProvider);
     final user = ref.watch(userProfileProvider);
     final isEmployer = user.isLoggedIn && user.role == 'employer';
+    final customCatsAsync = ref.watch(customCategoriesProvider);
+    final customCats = customCatsAsync.valueOrNull ?? [];
+    final allCategories = ['All', ...AppCategories.categoryIds, ...customCats];
 
     final queryParams = JobQueryParams(
       category: filterState.categories.isNotEmpty ? filterState.categories.first : _selectedCategory,
@@ -363,7 +364,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   child: Row(
-                    children: _categories.map((cat) {
+                    children: allCategories.map((cat) {
                       final isSelected = _selectedCategory == cat;
                       return Padding(
                         padding: const EdgeInsets.only(right: AppSpacing.xs + 2),
@@ -457,6 +458,7 @@ class _JobListingScreenState extends ConsumerState<JobListingScreen> {
                     itemBuilder: (context, index) {
                       final job = jobs[index];
                       return ServiceCard(
+                        image: job.imageUrl,
                         title: job.title,
                         category: job.category,
                         rating: job.rating,

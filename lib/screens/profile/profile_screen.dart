@@ -428,10 +428,38 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   size: 16,
                                   color: AppColors.success,
                                 ),
+                                if (user.role == 'worker') ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFFBEB),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: const Color(0xFFFEF3C7)),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.star_rounded, size: 10, color: AppColors.warning),
+                                        const SizedBox(width: 2),
+                                        Text(
+                                          user.rating.toStringAsFixed(1),
+                                          style: GoogleFonts.spaceMono(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFFB45309),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                             Text(
-                              l10n.verifiedEmployerBadge,
+                              user.role == 'worker'
+                                  ? l10n.verifiedWorkerBadge
+                                  : l10n.verifiedEmployerBadge,
                               style: GoogleFonts.inter(
                                 fontSize: 12,
                                 color: AppColors.inkMuted,

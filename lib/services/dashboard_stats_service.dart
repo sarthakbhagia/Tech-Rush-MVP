@@ -94,7 +94,7 @@ class DashboardStatsService {
       }
 
       return DashboardStats(
-        activePostings: openCount,
+        activePostings: jobRows.length,
         totalApplications: appCount,
         totalDispatches: completedCount,
         avgDailyPayout: avgPayout,
@@ -167,7 +167,17 @@ class DashboardStatsService {
         }
       } catch (_) {}
 
+      int openJobsCount = 0;
+      try {
+        final openJobsRes = await _client
+            .from('jobs')
+            .select('id')
+            .eq('status', 'open');
+        openJobsCount = (openJobsRes as List).length;
+      } catch (_) {}
+
       return DashboardStats(
+        activePostings: openJobsCount,
         dailyRate: dailyRate,
         workerRating: double.parse(workerRating.toStringAsFixed(1)),
         workerReviewCount: reviewCount,

@@ -59,17 +59,24 @@ class __PostJobBottomSheetContentState
   final TextEditingController _locationController = TextEditingController();
 
   late String _selectedCategory;
+  final TextEditingController _customCategoryController = TextEditingController();
   DateTime _scheduledDate = DateTime.now();
   bool _isUrgent = false;
   bool _isPosting = false;
   String? _errorMessage;
 
-  List<String> get _categories => AppCategories.categoryIds;
+  List<String> get _categories => [...AppCategories.categoryIds, 'Other'];
 
   @override
   void initState() {
     super.initState();
-    _selectedCategory = widget.initialCategory ?? _categories.first;
+    final isCustom = widget.initialCategory != null && !AppCategories.categoryIds.contains(widget.initialCategory);
+    if (isCustom) {
+      _selectedCategory = 'Other';
+      _customCategoryController.text = widget.initialCategory!;
+    } else {
+      _selectedCategory = widget.initialCategory ?? _categories.first;
+    }
     final user = widget.ref.read(userProfileProvider);
     _locationController.text = user.shortAddress.isNotEmpty ? user.shortAddress : 'Indiranagar, BLR';
   }
@@ -80,6 +87,7 @@ class __PostJobBottomSheetContentState
     _descController.dispose();
     _priceController.dispose();
     _locationController.dispose();
+    _customCategoryController.dispose();
     super.dispose();
   }
 
@@ -144,7 +152,7 @@ class __PostJobBottomSheetContentState
       id: '',
       employerId: null, // populated with auth.uid() inside createJob
       title: title,
-      category: _selectedCategory,
+      category: _selectedCategory == 'Other' ? _customCategoryController.text.trim() : _selectedCategory,
       description: desc.isNotEmpty ? desc : '.',
       wage: price,
       originalWage: _isUrgent ? (price * 1.2).roundToDouble() : null,
@@ -171,6 +179,7 @@ class __PostJobBottomSheetContentState
         widget.ref.invalidate(jobsByEmployerProvider);
         widget.ref.invalidate(filteredJobsProvider);
         widget.ref.invalidate(dashboardStatsProvider);
+        widget.ref.invalidate(customCategoriesProvider);
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -247,7 +256,7 @@ class __PostJobBottomSheetContentState
               return DropdownMenuItem(
                 value: cat,
                 child: Text(
-                  AppCategories.getLocalizedName(context, cat),
+                  cat == 'Other' ? '+ Other (specify)' : AppCategories.getLocalizedName(context, cat),
                   style: GoogleFonts.inter(fontSize: 13),
                 ),
               );
@@ -256,6 +265,33 @@ class __PostJobBottomSheetContentState
               if (val != null) setState(() => _selectedCategory = val);
             },
           ),
+          if (_selectedCategory == 'Other') ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              'SPECIFY CATEGORY *',
+              style: GoogleFonts.spaceMono(
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+                color: AppColors.inkMuted,
+              ),
+            ),
+            const SizedBox(height: 6),
+            TextFormField(
+              controller: _customCategoryController,
+              keyboardType: TextInputType.text,
+              textCapitalization: TextCapitalization.words,
+              style: GoogleFonts.inter(fontSize: 13, color: AppColors.inkPrimary),
+              decoration: const InputDecoration(
+                hintText: 'e.g. Furniture Assembly, Pet Sitting',
+              ),
+              validator: (val) {
+                if (_selectedCategory == 'Other' && (val == null || val.trim().isEmpty)) {
+                  return 'Please specify a custom category name';
+                }
+                return null;
+              },
+            ),
+          ],
           const SizedBox(height: AppSpacing.md),
 
           // Job Title

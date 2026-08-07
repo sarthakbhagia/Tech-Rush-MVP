@@ -33,6 +33,15 @@ class RatingService {
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
 
+  bool get _hasActiveSession {
+    if (!SupabaseService.isInitialized) return false;
+    try {
+      return SupabaseService().client.auth.currentSession != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ── In-memory fallback store for demo / offline mode ────────────────────
   static final List<Map<String, dynamic>> _localStore = [];
 
@@ -67,12 +76,13 @@ class RatingService {
       'created_at': DateTime.now().toIso8601String(),
     });
 
-    // Skip DB writes when IDs are non-UUIDs (demo mode)
-    if (!_uuidRegExp.hasMatch(jobId) ||
+    // Skip DB writes when IDs are non-UUIDs or user is not logged in (demo/offline mode)
+    if (!_hasActiveSession ||
+        !_uuidRegExp.hasMatch(jobId) ||
         !_uuidRegExp.hasMatch(raterId) ||
         !_uuidRegExp.hasMatch(rateeId)) {
       if (kDebugMode) {
-        print('ℹ️ [RatingService] Demo mode — rating stored locally only.');
+        print('ℹ️ [RatingService] Demo/Offline mode — rating stored locally only.');
       }
       return const RatingResult(success: true);
     }
@@ -140,7 +150,9 @@ class RatingService {
         r['rater_id'] == raterId);
     if (localMatch) return true;
 
-    if (!_uuidRegExp.hasMatch(jobId) || !_uuidRegExp.hasMatch(raterId)) {
+    if (!_hasActiveSession ||
+        !_uuidRegExp.hasMatch(jobId) ||
+        !_uuidRegExp.hasMatch(raterId)) {
       return false;
     }
 
@@ -171,7 +183,8 @@ class RatingService {
     final localTotal = localUp + localDown;
     final localPct = localTotal > 0 ? ((localUp / localTotal) * 100).round() : null;
 
-    if (!_uuidRegExp.hasMatch(targetId)) {
+    if (!_hasActiveSession ||
+        !_uuidRegExp.hasMatch(targetId)) {
       return MutualRatingSummary(
         totalRatings: localTotal,
         thumbsUpCount: localUp,

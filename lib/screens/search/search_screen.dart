@@ -353,6 +353,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             itemBuilder: (context, index) {
               final job = results[index];
               return ServiceCard(
+                image: job.imageUrl,
                 title: job.title,
                 category: job.category,
                 rating: job.rating,
