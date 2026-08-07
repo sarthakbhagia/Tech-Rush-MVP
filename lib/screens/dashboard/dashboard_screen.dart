@@ -183,6 +183,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final currentLocale = ref.watch(localeProvider);
     final userProfile = ref.watch(userProfileProvider);
 
+    final displayAddress = isEmployer
+        ? (userProfile.shortAddress.isNotEmpty ? userProfile.shortAddress : 'Select Location')
+        : (userProfile.workerAddress != null && userProfile.workerAddress!.isNotEmpty
+            ? userProfile.workerAddress!
+            : 'Koramangala, BLR');
+
+    final displayName = isEmployer
+        ? (userProfile.name.isNotEmpty ? userProfile.name : 'Guest Employer')
+        : (userProfile.workerName != null && userProfile.workerName!.isNotEmpty
+            ? userProfile.workerName!
+            : 'Raju Sharma');
+
     // Resolve the current authenticated user ID for stats queries
     final currentUserId =
         Supabase.instance.client.auth.currentUser?.id ??
@@ -279,7 +291,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         const SizedBox(width: 3),
                                         Expanded(
                                           child: Text(
-                                            ref.watch(userProfileProvider).shortAddress,
+                                            displayAddress,
                                             style: GoogleFonts.spaceMono(
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
@@ -298,9 +310,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       ],
                                     ),
                                     Text(
-                                      userProfile.name.isNotEmpty
-                                          ? userProfile.name
-                                          : (isEmployer ? 'Guest Employer' : 'Guest Worker'),
+                                      displayName,
                                       style: GoogleFonts.inter(
                                         fontSize: 11,
                                         color: Colors.white.withValues(alpha: 0.9),

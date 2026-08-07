@@ -98,12 +98,20 @@ class ProfileService {
 
     try {
       final res =
-          await _client.from('profiles').select().eq('id', userId).maybeSingle();
+          await _client.from('profiles').select('*, worker_profiles(location)').eq('id', userId).maybeSingle();
 
       if (res == null) return null;
 
       final List rawSkills = res['skills'] as List? ?? [];
       final skillsList = rawSkills.map((s) => s.toString()).toList();
+
+      String? workerLoc;
+      final wpData = res['worker_profiles'];
+      if (wpData is Map) {
+        workerLoc = wpData['location']?.toString();
+      } else if (wpData is List && wpData.isNotEmpty) {
+        workerLoc = wpData.first['location']?.toString();
+      }
 
       return UserProfile(
         name: res['full_name'] ?? 'Verified User',
@@ -119,6 +127,7 @@ class ProfileService {
         dailyRate: (res['daily_rate'] as num?)?.toDouble() ?? 650.0,
         dispatchRadiusKm: (res['dispatch_radius_km'] as num?)?.toDouble() ?? 15.0,
         availabilityStatus: res['availability_status'] ?? 'available',
+        workerAddress: workerLoc,
         isLoggedIn: true,
       );
     } catch (e) {

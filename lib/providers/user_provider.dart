@@ -94,18 +94,23 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       role: role,
     );
 
-    // Update in-memory state
-    state = UserProfile(
-      id: user.id,
-      name: fullName,
-      email: email,
-      phone: phone,
-      role: role,
-      streetAddress: streetAddress,
-      locality: locality,
-      city: city,
-      isLoggedIn: true,
-    );
+    // Refresh profile to load everything from database
+    await refreshProfile();
+
+    // Fallback if refresh returns null profile
+    if (!state.isLoggedIn) {
+      state = UserProfile(
+        id: user.id,
+        name: fullName,
+        email: email,
+        phone: phone,
+        role: role,
+        streetAddress: streetAddress,
+        locality: locality,
+        city: city,
+        isLoggedIn: true,
+      );
+    }
   }
 
   /// Real Supabase Email & Password Sign In
@@ -217,6 +222,18 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       final targetUserId = role == 'employer'
           ? 'e0000000-0000-0000-0000-000000000001'
           : 'e0000000-0000-0000-0000-000000000002';
+
+      // Ensure user's selected/entered details are saved
+      await _profileService.upsertProfile(
+        userId: targetUserId,
+        fullName: fullName ?? 'Demo User',
+        streetAddress: streetAddress ?? 'Flat 302, Green Acres',
+        locality: locality ?? 'Indiranagar',
+        city: city ?? 'BLR',
+        email: '$phone@kaamsetu.app',
+        phone: formattedPhone,
+        role: role,
+      );
       
       UserProfile? profile;
       try {
@@ -275,39 +292,28 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
         streetAddress: streetAddress,
         locality: locality,
         city: city ?? 'BLR',
-        email: user?.email ?? '$phone@kaamsetu.app',
+        email: user.email ?? '$phone@kaamsetu.app',
         phone: formattedPhone,
         role: role,
       );
+    }
 
+    // Refresh profile to update local state from Supabase
+    await refreshProfile();
+
+    // Secondary fallback in case DB fetch returned null profile
+    if (!state.isLoggedIn) {
       state = UserProfile(
         id: targetUserId,
-        name: fullName,
+        name: fullName ?? 'Verified User',
         phone: formattedPhone,
-        email: user?.email ?? '',
-        streetAddress: streetAddress,
-        locality: locality,
+        email: user.email ?? '',
+        streetAddress: streetAddress ?? 'Flat 302, Green Acres',
+        locality: locality ?? 'Indiranagar',
         city: city ?? 'BLR',
+        role: role,
         isLoggedIn: true,
       );
-    } else {
-      // Returning User Sign-In
-      final profile = await _profileService.fetchProfile(targetUserId);
-
-      if (profile != null) {
-        state = profile.copyWith(id: targetUserId);
-      } else {
-        state = UserProfile(
-          id: targetUserId,
-          name: 'Verified User',
-          phone: formattedPhone,
-          email: user?.email ?? '',
-          streetAddress: 'Flat 302, Green Acres',
-          locality: 'Indiranagar',
-          city: 'BLR',
-          isLoggedIn: true,
-        );
-      }
     }
   }
 
@@ -322,12 +328,10 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
   /// Manually refresh profile from Supabase
   Future<void> refreshProfile() async {
     try {
-      final user = SupabaseService().client.auth.currentUser;
-      if (user != null) {
-        final profile = await _profileService.fetchProfile(user.id);
-        if (profile != null) {
-          state = profile.copyWith(id: user.id);
-        }
+      final userId = SupabaseService().client.auth.currentUser?.id ?? state.id ?? 'e0000000-0000-0000-0000-000000000001';
+      final profile = await _profileService.fetchProfile(userId);
+      if (profile != null) {
+        state = profile.copyWith(id: userId);
       }
     } catch (e) {
       if (kDebugMode) {

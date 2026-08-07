@@ -13,6 +13,8 @@ class UserProfile {
   final double dailyRate;
   final double dispatchRadiusKm;
   final String availabilityStatus; // 'available' or 'busy'
+  final String? workerAddress;
+  final String? workerName;
   final bool isLoggedIn;
 
   const UserProfile({
@@ -30,6 +32,8 @@ class UserProfile {
     this.dailyRate = 650.0,
     this.dispatchRadiusKm = 15.0,
     this.availabilityStatus = 'available',
+    this.workerAddress,
+    this.workerName,
     this.isLoggedIn = false,
   });
 
@@ -39,15 +43,16 @@ class UserProfile {
     return 4.0 + (code % 10) / 10.0;
   }
 
+  String? get address => streetAddress.isNotEmpty ? streetAddress : (locality.isNotEmpty ? locality : null);
+
   String get shortAddress {
-    if (locality.isNotEmpty && city.isNotEmpty) {
-      return '$locality, $city';
-    } else if (locality.isNotEmpty) {
-      return locality;
-    } else if (streetAddress.isNotEmpty) {
-      return streetAddress;
+    if (address != null && address!.isNotEmpty) {
+      return address!;
     }
-    return 'Set Location';
+    if (city.isNotEmpty) {
+      return city;
+    }
+    return 'Select Location';
   }
 
   String get fullAddress {
@@ -71,6 +76,8 @@ class UserProfile {
     double? dailyRate,
     double? dispatchRadiusKm,
     String? availabilityStatus,
+    String? workerAddress,
+    String? workerName,
     bool? isLoggedIn,
   }) {
     return UserProfile(
@@ -88,6 +95,8 @@ class UserProfile {
       dailyRate: dailyRate ?? this.dailyRate,
       dispatchRadiusKm: dispatchRadiusKm ?? this.dispatchRadiusKm,
       availabilityStatus: availabilityStatus ?? this.availabilityStatus,
+      workerAddress: workerAddress ?? this.workerAddress,
+      workerName: workerName ?? this.workerName,
       isLoggedIn: isLoggedIn ?? this.isLoggedIn,
     );
   }
