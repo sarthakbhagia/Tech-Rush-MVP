@@ -51,7 +51,6 @@ KaamSetu digitizes daily labor dispatch into a clean, mobile-first experience:
 ## System Architecture
 
 ```mermaid
-graph TD
    graph TD
     %% User Devices / Platforms
     subgraph Platforms["1. Cross-Platform Frontend (Flutter & Dart)"]
