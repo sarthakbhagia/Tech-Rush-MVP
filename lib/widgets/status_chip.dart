@@ -9,6 +9,7 @@ enum StatusChipType {
   assigned,
   interested,
   completed,
+  closed,
 }
 
 class StatusChipStyle {
@@ -86,6 +87,15 @@ class _StatusChipState extends State<StatusChip>
           dotColor: AppColors.success,
           shouldPulse: false,
         );
+      case StatusChipType.closed:
+        return StatusChipStyle(
+          label: 'CLOSED',
+          bg: AppColors.dangerSubtle,
+          border: AppColors.danger.withValues(alpha: 0.4),
+          text: AppColors.danger,
+          dotColor: AppColors.danger,
+          shouldPulse: false,
+        );
     }
   }
 
@@ -145,9 +155,24 @@ class _StatusChipState extends State<StatusChip>
         case StatusChipType.completed:
           defaultLabel = l10n.statusCompletedFull;
           break;
+        case StatusChipType.closed:
+          defaultLabel = 'CLOSED';
+          break;
       }
     }
     final displayLabel = widget.labelOverride ?? defaultLabel;
+
+    StatusChipStyle finalStyle = style;
+    if (displayLabel.toUpperCase() == 'AVAILABLE' || (l10n != null && displayLabel == l10n.statusAvailable)) {
+      finalStyle = StatusChipStyle(
+        label: displayLabel,
+        bg: AppColors.successSubtle,
+        border: AppColors.success.withValues(alpha: 0.4),
+        text: AppColors.success,
+        dotColor: AppColors.success,
+        shouldPulse: style.shouldPulse,
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(
@@ -155,10 +180,10 @@ class _StatusChipState extends State<StatusChip>
         vertical: AppSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: style.bg,
+        color: finalStyle.bg,
         borderRadius: AppRadii.pill,
         border: Border.all(
-          color: style.border,
+          color: finalStyle.border,
           width: 1.0,
         ),
       ),
@@ -166,7 +191,7 @@ class _StatusChipState extends State<StatusChip>
         mainAxisSize: MainAxisSize.min,
         children: [
           // Dot Indicator (Pulsing for active states, static for completed)
-          if (style.shouldPulse && _pulseAnimation != null) ...[
+          if (finalStyle.shouldPulse && _pulseAnimation != null) ...[
             SizedBox(
               width: 8,
               height: 8,
@@ -179,7 +204,7 @@ class _StatusChipState extends State<StatusChip>
                       width: 8,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: style.dotColor,
+                        color: finalStyle.dotColor,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -188,7 +213,7 @@ class _StatusChipState extends State<StatusChip>
                     width: 5,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: style.dotColor,
+                      color: finalStyle.dotColor,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -196,12 +221,12 @@ class _StatusChipState extends State<StatusChip>
               ),
             ),
             const SizedBox(width: AppSpacing.xs + 2),
-          ] else if (!style.shouldPulse) ...[
+          ] else if (!finalStyle.shouldPulse) ...[
             Container(
               width: 6,
               height: 6,
               decoration: BoxDecoration(
-                color: style.dotColor,
+                color: finalStyle.dotColor,
                 shape: BoxShape.circle,
               ),
             ),
@@ -215,7 +240,7 @@ class _StatusChipState extends State<StatusChip>
               style: GoogleFonts.spaceMono(
                 fontSize: 10.0,
                 fontWeight: FontWeight.bold,
-                color: style.text,
+                color: finalStyle.text,
                 letterSpacing: 0.5,
               ),
               maxLines: 1,

@@ -22,7 +22,6 @@ import '../../widgets/address_bottom_sheet.dart';
 import '../../widgets/post_job_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../services/dashboard_stats_service.dart';
 
 enum DashboardRole { employer, worker }
 
@@ -40,6 +39,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    // Initialize role from provider immediately to prevent layout flashes
+    final initialRole = ref.read(userProfileProvider).role;
+    _role = (initialRole == 'worker') ? DashboardRole.worker : DashboardRole.employer;
     _loadProfile();
   }
 
@@ -47,15 +49,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     setState(() => _isLoading = true);
     await ref.read(userProfileProvider.notifier).refreshProfile();
     if (mounted) {
+      final profileRole = ref.read(userProfileProvider).role;
       setState(() {
         _isLoading = false;
-        // Sync UI role state from persisted profile role
-        final profileRole = ref.read(userProfileProvider).role;
-        if (profileRole == 'worker' && _role == DashboardRole.employer) {
-          _role = DashboardRole.worker;
-        } else if (profileRole == 'employer' && _role == DashboardRole.worker) {
-          _role = DashboardRole.employer;
-        }
+        // Maintain active role state from provider rather than defaulting to employer
+        _role = (profileRole == 'worker')
+            ? DashboardRole.worker
+            : DashboardRole.employer;
       });
     }
   }
@@ -200,13 +200,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         Supabase.instance.client.auth.currentUser?.id ??
         (userProfile.id?.isNotEmpty == true ? userProfile.id! : null) ??
         'e0000000-0000-0000-0000-000000000001';
-    final statsRole = isEmployer ? 'employer' : 'worker';
-    final statsAsync = ref.watch(
-      dashboardStatsProvider(
-        DashboardStatsParams(userId: currentUserId, role: statsRole),
-      ),
-    );
-    final stats = statsAsync.valueOrNull ?? const DashboardStats();
 
     final dashboardJobsAsync = isEmployer
         ? ref.watch(jobsByEmployerProvider(currentUserId))
@@ -218,8 +211,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         top: false,
         child: RefreshIndicator(
           onRefresh: () async {
-            // Invalidate stats and notification count so they re-fetch from Supabase
-            ref.invalidate(dashboardStatsProvider);
+            // Invalidate notification count so they re-fetch from Supabase
             ref.invalidate(notificationsProvider);
             await _loadProfile();
           },
@@ -674,9 +666,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             return CategoryTile(
                               icon: cat.icon,
                               label: cat.getLocalizedName(l10n),
-                              badgeText: cat.getLocalizedBadge(l10n),
-                              badgeColor: cat.badgeColor ?? AppColors.brand,
-                              badgeBg: cat.badgeBg ?? const Color(0xFFFFF7ED),
                               onTap: () => isEmployer
                                   ? openPostJobBottomSheet(context, ref, initialCategory: cat.id)
                                   : context.push('/listings?category=${cat.id}'),
@@ -721,14 +710,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   ),
                                   const SizedBox(width: AppSpacing.sm),
                                   StatusChip(
-                                    status: StatusChipType.open,
-                                    labelOverride: l10n.statusAvailable,
+                                    status: userProfile.isAvailable
+                                        ? StatusChipType.open
+                                        : StatusChipType.closed,
+                                    labelOverride: userProfile.isAvailable
+                                        ? l10n.statusAvailable
+                                        : (currentLocale.languageCode == 'hi'
+                                            ? 'अनुपलब्ध'
+                                            : 'NOT AVAILABLE'),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: AppSpacing.sm),
                               Text(
-                                l10n.subtextDailyAvailStatus,
+                                userProfile.isAvailable
+                                    ? l10n.subtextDailyAvailStatus
+                                    : (currentLocale.languageCode == 'hi'
+                                        ? 'आपकी प्रोफ़ाइल वर्तमान में सक्रिय प्रेषण पूल से रुकी हुई है। पास के नियोक्ताओं से कॉल प्राप्त करने के लिए उपलब्धता चालू करें।'
+                                        : 'Your profile is currently paused from active dispatch pool. Turn on availability to receive calls from nearby employers.'),
                                 style: GoogleFonts.inter(
                                   fontSize: 12,
                                   color: AppColors.inkMuted,
@@ -741,120 +740,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         const SizedBox(height: AppSpacing.xl),
                       ],
 
-                      Text(
-                        isEmployer
-                            ? l10n.headerDispatchMetricsOverview
-                            : l10n.headerMyWorkParameters,
-                        style: GoogleFonts.spaceMono(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.inkMuted,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: AppSpacing.md,
-                        crossAxisSpacing: AppSpacing.md,
-                        childAspectRatio: 1.35,
-                        children: isEmployer
-                            ? [
-                                _StatTile(
-                                  icon: Icons.work_outline_rounded,
-                                  iconBg: const Color(0xFFFFF7ED),
-                                  iconColor: AppColors.brand,
-                                  title: currentLocale.languageCode == 'hi' ? 'कुल पोस्टिंग' : 'Jobs Posted',
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : '${stats.activePostings}',
-                                  subtext: currentLocale.languageCode == 'hi' ? 'आपके द्वारा पोस्ट किए गए' : 'Posted by you',
-                                ),
-                                _StatTile(
-                                  icon: Icons.people_outline_rounded,
-                                  iconBg: const Color(0xFFEFF6FF),
-                                  iconColor: const Color(0xFF2563EB),
-                                  title: l10n.statApplications,
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : '${stats.totalApplications}',
-                                  subtext: currentLocale.languageCode == 'hi' ? 'प्राप्त आवेदन' : 'Applications received',
-                                ),
-                                _StatTile(
-                                  icon: Icons.task_alt_rounded,
-                                  iconBg: const Color(0xFFECFDF5),
-                                  iconColor: AppColors.success,
-                                  title: l10n.statTotalDispatches,
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : '${stats.totalDispatches}',
-                                  subtext: l10n.statTotalDispatchesSubtext,
-                                ),
-                                _StatTile(
-                                  icon: Icons.currency_rupee_rounded,
-                                  iconBg: const Color(0xFFFEF3C7),
-                                  iconColor: AppColors.brand,
-                                  title: l10n.statAvgDailyPayout,
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : stats.avgDailyPayout > 0
-                                          ? '₹${stats.avgDailyPayout.toStringAsFixed(0)}'
-                                          : '—',
-                                  subtext: l10n.statAvgDailyPayoutSubtext,
-                                  highlightValue: true,
-                                ),
-                              ]
-                            : [
-                                _StatTile(
-                                  icon: Icons.work_outline_rounded,
-                                  iconBg: const Color(0xFFFFF7ED),
-                                  iconColor: AppColors.brand,
-                                  title: currentLocale.languageCode == 'hi' ? 'उपलब्ध काम' : 'Available Jobs',
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : '${stats.activePostings}',
-                                  subtext: currentLocale.languageCode == 'hi' ? 'खुली पोस्टिंग' : 'Open dispatches',
-                                ),
-                                _StatTile(
-                                  icon: Icons.check_circle_outline_rounded,
-                                  iconBg: const Color(0xFFECFDF5),
-                                  iconColor: AppColors.success,
-                                  title: currentLocale.languageCode == 'hi' ? 'स्वीकृत कार्य' : 'Assigned Jobs',
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : '${stats.jobsCompleted}',
-                                  subtext: currentLocale.languageCode == 'hi' ? 'स्वीकृत और पूर्ण' : 'Accepted & completed',
-                                ),
-                                _StatTile(
-                                  icon: Icons.currency_rupee_rounded,
-                                  iconBg: const Color(0xFFFEF3C7),
-                                  iconColor: AppColors.brand,
-                                  title: l10n.statDailyWageRate,
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : '₹${stats.dailyRate.toStringAsFixed(0)}/day',
-                                  subtext: l10n.statSetByEmployer,
-                                  highlightValue: true,
-                                ),
-                                _StatTile(
-                                  icon: Icons.star_rounded,
-                                  iconBg: const Color(0xFFFFFBEB),
-                                  iconColor: AppColors.warning,
-                                  title: l10n.statRatingScore,
-                                  value: statsAsync.isLoading
-                                      ? '—'
-                                      : stats.workerReviewCount > 0
-                                          ? '${stats.workerRating.toStringAsFixed(1)} ★'
-                                          : 'New',
-                                  subtext: stats.workerReviewCount > 0
-                                      ? '${stats.workerReviewCount} Reviews'
-                                      : l10n.stat24Reviews,
-                                ),
-                              ],
-                      ),
-                      const SizedBox(height: AppSpacing.xxl + 8),
+
 
                       // 4. Recent Postings Feed
                       Row(
@@ -933,101 +819,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _StatTile extends StatelessWidget {
-  final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
-  final String title;
-  final String value;
-  final String subtext;
-  final bool highlightValue;
-
-  const _StatTile({
-    required this.icon,
-    required this.iconBg,
-    required this.iconColor,
-    required this.title,
-    required this.value,
-    required this.subtext,
-    this.highlightValue = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadii.card,
-        boxShadow: AppShadows.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: iconColor,
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
-                  textAlign: TextAlign.right,
-                  style: GoogleFonts.spaceMono(
-                    fontSize: 8.5,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.inkMuted,
-                    letterSpacing: 0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: GoogleFonts.spaceMono(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: highlightValue ? AppColors.brand : AppColors.inkPrimary,
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                subtext,
-                style: GoogleFonts.inter(
-                  fontSize: 10,
-                  color: AppColors.inkMuted,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

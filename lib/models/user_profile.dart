@@ -37,6 +37,8 @@ class UserProfile {
     this.isLoggedIn = false,
   });
 
+  bool get isAvailable => availabilityStatus == 'available';
+
   double get rating {
     if (name.isEmpty) return 4.5;
     final code = name.codeUnits.fold<int>(0, (sum, val) => sum + val);

@@ -331,7 +331,7 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
       final userId = SupabaseService().client.auth.currentUser?.id ?? state.id ?? 'e0000000-0000-0000-0000-000000000001';
       final profile = await _profileService.fetchProfile(userId);
       if (profile != null) {
-        state = profile.copyWith(id: userId);
+        state = profile.copyWith(id: userId, role: state.role);
       }
     } catch (e) {
       if (kDebugMode) {
