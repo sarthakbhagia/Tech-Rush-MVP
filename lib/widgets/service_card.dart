@@ -9,8 +9,8 @@ class ServiceCard extends StatefulWidget {
   final String? image;
   final String title;
   final String category;
-  final double rating;
-  final int reviewCount;
+  final int? thumbsUpCount;
+  final int? thumbsUpPercentage;
   final double price;
   final double? originalPrice;
   final bool verified;
@@ -21,8 +21,8 @@ class ServiceCard extends StatefulWidget {
     this.image,
     required this.title,
     required this.category,
-    required this.rating,
-    required this.reviewCount,
+    this.thumbsUpCount,
+    this.thumbsUpPercentage,
     required this.price,
     this.originalPrice,
     this.verified = true,
@@ -157,122 +157,132 @@ class _ServiceCardState extends State<ServiceCard> {
 
               // Right Details Column
               Expanded(
-                child: SizedBox(
-                  height: 80,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Category, Title, Rating Row
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            localizedCategory.toUpperCase(),
-                            style: GoogleFonts.spaceMono(
-                              fontSize: 10.0,
-                              fontWeight: FontWeight.w500,
-                              color: AppColors.inkMuted,
-                              letterSpacing: 0.5,
-                            ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Category, Title, Rating Row
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          localizedCategory.toUpperCase(),
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 10.0,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.inkMuted,
+                            letterSpacing: 0.5,
+                            height: 1.2,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.title,
-                            style: GoogleFonts.sora(
-                              fontSize: 14.0,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.inkPrimary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.title,
+                          style: GoogleFonts.sora(
+                            fontSize: 14.0,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.inkPrimary,
+                            height: 1.2,
                           ),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.star_rounded,
-                                size: 13.0,
-                                color: AppColors.warning,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Text(
+                              '👍',
+                              style: const TextStyle(fontSize: 12.0, height: 1.0),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              widget.thumbsUpPercentage != null
+                                  ? '${widget.thumbsUpPercentage}%'
+                                  : (widget.thumbsUpCount != null
+                                      ? '${widget.thumbsUpCount}'
+                                      : 'New'),
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 11.0,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.success,
+                                height: 1.2,
                               ),
-                              const SizedBox(width: 3),
-                              Text(
-                                widget.rating.toStringAsFixed(1),
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 11.0,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.warning,
-                                ),
-                              ),
+                            ),
+                            if (widget.thumbsUpPercentage != null) ...[
                               const SizedBox(width: 4),
                               Text(
-                                '(${widget.reviewCount})',
+                                'Recommended',
                                 style: GoogleFonts.spaceMono(
-                                  fontSize: 11.0,
+                                  fontSize: 10.0,
                                   color: AppColors.inkMuted,
+                                  height: 1.2,
                                 ),
                               ),
                             ],
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
 
-                      // Price & Heart Save Toggle Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.baseline,
-                        textBaseline: TextBaseline.alphabetic,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                Formatters.currency(widget.price),
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 15.0,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.brand,
-                                ),
-                              ),
-                              if (widget.originalPrice != null) ...[
-                                const SizedBox(width: AppSpacing.xs + 2),
-                                Text(
-                                  Formatters.currency(widget.originalPrice!),
-                                  style: GoogleFonts.spaceMono(
-                                    fontSize: 11.0,
-                                    color: AppColors.inkCaption,
-                                    decoration: TextDecoration.lineThrough,
-                                    decorationColor: AppColors.inkCaption,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-
-                          // Interactive Bookmark / Save Toggle Button
-                          GestureDetector(
-                            onTap: () {
-                              setState(() => _isSaved = !_isSaved);
-                            },
-                            behavior: HitTestBehavior.opaque,
-                            child: Padding(
-                              padding: const EdgeInsets.all(4.0),
-                              child: Icon(
-                                _isSaved
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
-                                size: 16.0,
-                                color: _isSaved
-                                    ? const Color(0xFFD66853)
-                                    : AppColors.inkMuted,
+                    // Price & Heart Save Toggle Row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              Formatters.currency(widget.price),
+                              style: GoogleFonts.spaceMono(
+                                fontSize: 15.0,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.brand,
+                                height: 1.2,
                               ),
                             ),
+                            if (widget.originalPrice != null) ...[
+                              const SizedBox(width: AppSpacing.xs + 2),
+                              Text(
+                                Formatters.currency(widget.originalPrice!),
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 11.0,
+                                  color: AppColors.inkCaption,
+                                  decoration: TextDecoration.lineThrough,
+                                  decorationColor: AppColors.inkCaption,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+
+                        // Interactive Bookmark / Save Toggle Button
+                        GestureDetector(
+                          onTap: () {
+                            setState(() => _isSaved = !_isSaved);
+                          },
+                          behavior: HitTestBehavior.opaque,
+                          child: Padding(
+                            padding: const EdgeInsets.all(4.0),
+                            child: Icon(
+                              _isSaved
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 16.0,
+                              color: _isSaved
+                                  ? const Color(0xFFD66853)
+                                  : AppColors.inkMuted,
+                            ),
                           ),
-                        ],
-                      ),
-                    ],
-                  ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ],

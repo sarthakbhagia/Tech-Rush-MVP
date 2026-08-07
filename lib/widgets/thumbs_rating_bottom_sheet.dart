@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/theme.dart';
 import '../core/spacing.dart';
+import '../providers/job_provider.dart';
+import '../services/dashboard_stats_service.dart';
 import '../providers/review_provider.dart';
+import '../providers/user_provider.dart';
 import '../services/rating_service.dart';
 
 /// Opens the dual 👍 / 👎 rating bottom sheet.
@@ -105,8 +108,13 @@ class _ThumbsRatingBottomSheetState
         _submitted = true;
       });
 
-      // Invalidate thumbs summary so profile screens refresh
+      // Invalidate all rating-related providers for instant UI updates
       ref.invalidate(mutualRatingSummaryProvider(widget.targetId));
+      ref.invalidate(hasRatedProvider((jobId: widget.jobId, raterId: widget.evaluatorId)));
+      ref.invalidate(userProfileProvider);
+      ref.invalidate(dashboardStatsProvider);
+      ref.invalidate(jobDetailProvider(widget.jobId));
+      ref.invalidate(jobsByCategoryProvider);
 
       await Future.delayed(const Duration(milliseconds: 1200));
       if (mounted) Navigator.pop(context);

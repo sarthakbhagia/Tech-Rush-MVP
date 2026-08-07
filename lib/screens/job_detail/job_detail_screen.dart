@@ -35,7 +35,6 @@ class JobDetailScreen extends ConsumerStatefulWidget {
 
 class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   bool _isApplying = false;
-  bool _isBannerDismissed = false;
 
   Future<void> _handleExpressInterest(Job job) async {
     final user = ref.read(userProfileProvider);
@@ -256,10 +255,6 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           final asyncApps = ref.watch(jobApplicationsProvider(job.id));
           final applications = asyncApps.asData?.value ?? [];
           final liveUid = SupabaseService().client.auth.currentUser?.id;
-          final currentWorkerId = liveUid ??
-              (user.id?.isNotEmpty == true ? user.id! : null) ??
-              (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
-          final hasApplied = applications.any((a) => a.workerId == currentWorkerId);
           final employerProfileAsync = job.employerId != null && job.employerId!.isNotEmpty
               ? ref.watch(profileDetailsProvider(job.employerId!))
               : null;
@@ -291,117 +286,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                         )
                       : _buildDetailCategoryFallback(job.category),
                 ),
-                // Mutual Rating Banner
-                if (isCompleted && !_isBannerDismissed)
-                  (() {
-                    final assignedApps = applications.where((a) => a.status == 'assigned').toList();
-                    final assignedApp = assignedApps.isNotEmpty ? assignedApps.first : null;
-
-                    if (assignedApp == null) return const SizedBox.shrink();
-
-                    final raterId = liveUid ?? user.id ?? '';
-                    final bool isEmployer = (liveUid != null && liveUid == job.employerId) ||
-                                           (user.id != null && user.id == job.employerId) ||
-                                           (user.role == 'employer' && job.employerId == null);
-                    final bool isWorker = liveUid == assignedApp.workerId || user.id == assignedApp.workerId;
-
-                    if (!isEmployer && !isWorker) return const SizedBox.shrink();
-
-                    final rateeName = isEmployer ? assignedApp.workerName : job.employerName;
-                    final rateeId = isEmployer ? assignedApp.workerId : (job.employerId ?? '');
-                    final raterRole = isEmployer ? 'employer' : 'worker';
-
-                    return ref.watch(hasRatedProvider((jobId: job.id, raterId: raterId))).when(
-                      data: (hasRated) {
-                        if (hasRated) return const SizedBox.shrink();
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                          padding: const EdgeInsets.all(AppSpacing.md),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: AppRadii.card,
-                            border: Border.all(color: AppColors.brand.withOpacity(0.5)),
-                            boxShadow: AppShadows.card,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.star_rounded, color: AppColors.brand, size: 16),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        'RATE YOUR EXPERIENCE',
-                                        style: GoogleFonts.spaceMono(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppColors.brand,
-                                          letterSpacing: 0.8,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.inkMuted),
-                                    onPressed: () {
-                                      setState(() {
-                                        _isBannerDismissed = true;
-                                      });
-                                    },
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'How was your experience with $rateeName?',
-                                style: GoogleFonts.sora(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.inkPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  _thumbsButton(
-                                    context,
-                                    ref,
-                                    label: 'Good 👍',
-                                    isUp: true,
-                                    jobId: job.id,
-                                    raterId: raterId,
-                                    rateeId: rateeId,
-                                    rateeName: rateeName,
-                                    raterRole: raterRole,
-                                  ),
-                                  const SizedBox(width: AppSpacing.md),
-                                  _thumbsButton(
-                                    context,
-                                    ref,
-                                    label: 'Bad 👎',
-                                    isUp: false,
-                                    jobId: job.id,
-                                    raterId: raterId,
-                                    rateeId: rateeId,
-                                    rateeName: rateeName,
-                                    raterRole: raterRole,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      loading: () => const SizedBox.shrink(),
-                      error: (_, __) => const SizedBox.shrink(),
-                    );
-                  })(),
+                // Mutual Rating Banner removed - rating now only triggered via bottom sheet modal
 
                 // Header Card
                 Container(
@@ -835,77 +720,6 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ),
     );
   }
-
-  Widget _thumbsButton(
-    BuildContext context,
-    WidgetRef ref, {
-    required String label,
-    required bool isUp,
-    required String jobId,
-    required String raterId,
-    required String rateeId,
-    required String rateeName,
-    required String raterRole,
-  }) {
-    return ElevatedButton(
-      onPressed: () async {
-        final service = ref.read(ratingServiceProvider);
-        final result = await service.submitRating(
-          jobId: jobId,
-          raterId: raterId,
-          rateeId: rateeId,
-          raterRole: raterRole,
-          isThumbsUp: isUp,
-        );
-
-        if (result.success) {
-          ref.invalidate(hasRatedProvider((jobId: jobId, raterId: raterId)));
-          ref.invalidate(mutualRatingSummaryProvider(rateeId));
-          ref.invalidate(userProfileProvider);
-
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: AppColors.success,
-                content: Text(
-                  isUp ? '👍 Rated $rateeName positively!' : '👎 Feedback submitted.',
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-                ),
-              ),
-            );
-          }
-        } else {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: AppColors.danger,
-                content: Text(
-                  result.errorMessage ?? 'Failed to submit rating.',
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-                ),
-              ),
-            );
-          }
-        }
-      },
-      style: ElevatedButton.styleFrom(
-        backgroundColor: isUp ? const Color(0xFF10B981) : const Color(0xFFEF4444),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: AppRadii.pill,
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.spaceMono(
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
 }
 
 /// Loads and displays a worker's avatar from Supabase profiles.
@@ -991,13 +805,6 @@ final profileDetailsProvider =
   }
 });
 
-/// Deterministic rating helper function based on name hash
-double getHardcodedWorkerRating(String name) {
-  if (name.isEmpty) return 4.5;
-  final code = name.codeUnits.fold<int>(0, (sum, val) => sum + val);
-  return 4.0 + (code % 10) / 10.0;
-}
-
 class _ApplicantRow extends ConsumerWidget {
   final Application app;
   final Job job;
@@ -1033,7 +840,6 @@ class _ApplicantRow extends ConsumerWidget {
       data: (profileData) {
         final realName = profileData['name'] as String?;
         final workerName = realName != null && realName.isNotEmpty ? realName : app.workerName;
-        final rating = getHardcodedWorkerRating(workerName);
 
         return Container(
           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -1070,28 +876,55 @@ class _ApplicantRow extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFFBEB),
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: const Color(0xFFFEF3C7)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star_rounded, size: 10, color: AppColors.warning),
-                              const SizedBox(width: 2),
-                              Text(
-                                rating.toStringAsFixed(1),
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFFB45309),
+                        ref.watch(mutualRatingSummaryProvider(app.workerId)).when(
+                          data: (summary) {
+                            if (summary.totalRatings == 0) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceRaised,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.border),
                                 ),
+                                child: Text(
+                                  'New',
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ),
+                              );
+                            }
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFA7F3D0)),
                               ),
-                            ],
-                          ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '👍',
+                                    style: const TextStyle(fontSize: 9),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${summary.thumbsUpPercentage}%',
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF059669),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
                         ),
                       ],
                     ),

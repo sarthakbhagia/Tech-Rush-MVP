@@ -132,8 +132,8 @@ class _DemoWidgetsScreenState extends State<DemoWidgetsScreen> {
             ServiceCard(
               title: 'Full House Painting (Interior Walls)',
               category: 'Painting',
-              rating: 4.8,
-              reviewCount: 24,
+              thumbsUpCount: 24,
+              thumbsUpPercentage: 96,
               price: 1500,
               originalPrice: 1800,
               verified: true,
@@ -146,8 +146,8 @@ class _DemoWidgetsScreenState extends State<DemoWidgetsScreen> {
             ServiceCard(
               title: 'Deep Kitchen & Chimney Cleaning',
               category: 'Cleaning',
-              rating: 4.9,
-              reviewCount: 42,
+              thumbsUpCount: 42,
+              thumbsUpPercentage: 98,
               price: 900,
               originalPrice: 1200,
               verified: true,

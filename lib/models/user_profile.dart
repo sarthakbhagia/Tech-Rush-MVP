@@ -39,12 +39,6 @@ class UserProfile {
 
   bool get isAvailable => availabilityStatus == 'available';
 
-  double get rating {
-    if (name.isEmpty) return 4.5;
-    final code = name.codeUnits.fold<int>(0, (sum, val) => sum + val);
-    return 4.0 + (code % 10) / 10.0;
-  }
-
   String? get address => streetAddress.isNotEmpty ? streetAddress : (locality.isNotEmpty ? locality : null);
 
   String get shortAddress {

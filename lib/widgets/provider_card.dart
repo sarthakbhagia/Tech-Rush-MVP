@@ -182,67 +182,119 @@ class ProviderCard extends ConsumerWidget {
                           ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.star_rounded,
-                          size: 13.0,
-                          color: AppColors.warning,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          rating.toStringAsFixed(1),
-                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                fontSize: 11.0,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.warning,
-                              ),
-                        ),
-                        const SizedBox(width: 4),
-                        Flexible(
-                          child: Text(
-                            '($jobsCompleted jobs completed)',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                  fontSize: 11.0,
-                                  color: AppColors.inkMuted,
-                                ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (rateeId != null) ...[
-                      const SizedBox(height: 4),
-                      ref.watch(mutualRatingSummaryProvider(rateeId!)).when(
-                        data: (summary) {
-                          final hasRatings = summary.totalRatings > 0;
-                          final displayStr = hasRatings
-                              ? '👍 ${summary.thumbsUpPercentage}% (${summary.totalRatings} job${summary.totalRatings == 1 ? "" : "s"})'
-                              : 'No ratings yet';
-                          return Row(
-                            children: [
-                              Icon(
-                                hasRatings ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
-                                size: 11.0,
-                                color: AppColors.brand,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                displayStr,
-                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    rateeId != null
+                        ? ref.watch(mutualRatingSummaryProvider(rateeId!)).when(
+                            data: (summary) {
+                              if (summary.totalRatings == 0) {
+                                return Row(
+                                  children: [
+                                    Text(
+                                      'New Worker',
+                                      style: GoogleFonts.spaceMono(
+                                        fontSize: 11.0,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.inkMuted,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '($jobsCompleted jobs completed)',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.0,
+                                        color: AppColors.inkMuted,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }
+                              return Row(
+                                children: [
+                                  Text(
+                                    '👍',
+                                    style: const TextStyle(fontSize: 12.0),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '${summary.thumbsUpPercentage}% Recommended',
+                                    style: GoogleFonts.spaceMono(
                                       fontSize: 11.0,
                                       fontWeight: FontWeight.bold,
-                                      color: AppColors.inkPrimary,
+                                      color: const Color(0xFF059669),
                                     ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Flexible(
+                                    child: Text(
+                                      '(${summary.totalRatings} rating${summary.totalRatings == 1 ? "" : "s"})',
+                                      style: GoogleFonts.inter(
+                                        fontSize: 11.0,
+                                        color: AppColors.inkMuted,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                            loading: () => Row(
+                              children: [
+                                const SizedBox(
+                                  width: 12,
+                                  height: 12,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '($jobsCompleted jobs)',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11.0,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            error: (_, __) => Row(
+                              children: [
+                                Text(
+                                  'Rating unavailable',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11.0,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Row(
+                            children: [
+                              Text(
+                                '👍',
+                                style: const TextStyle(fontSize: 12.0),
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${rating.toStringAsFixed(0)}%',
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 11.0,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF059669),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  '($jobsCompleted jobs completed)',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11.0,
+                                    color: AppColors.inkMuted,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ],
-                          );
-                        },
-                        loading: () => const SizedBox.shrink(),
-                        error: (_, __) => const SizedBox.shrink(),
-                      ),
-                    ],
+                          ),
                   ],
                 ),
               ),

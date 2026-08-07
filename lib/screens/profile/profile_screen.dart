@@ -430,28 +430,55 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                                 if (user.role == 'worker') ...[
                                   const SizedBox(width: 6),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFBEB),
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(color: const Color(0xFFFEF3C7)),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(Icons.star_rounded, size: 10, color: AppColors.warning),
-                                        const SizedBox(width: 2),
-                                        Text(
-                                          user.rating.toStringAsFixed(1),
-                                          style: GoogleFonts.spaceMono(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                            color: const Color(0xFFB45309),
+                                  ref.watch(mutualRatingSummaryProvider(user.id ?? '')).when(
+                                    data: (summary) {
+                                      if (summary.totalRatings == 0) {
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.surfaceRaised,
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: AppColors.border),
                                           ),
+                                          child: Text(
+                                            'New',
+                                            style: GoogleFonts.spaceMono(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.inkMuted,
+                                            ),
+                                          ),
+                                        );
+                                      }
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFECFDF5),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: const Color(0xFFA7F3D0)),
                                         ),
-                                      ],
-                                    ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '👍',
+                                              style: const TextStyle(fontSize: 9),
+                                            ),
+                                            const SizedBox(width: 2),
+                                            Text(
+                                              '${summary.thumbsUpPercentage}%',
+                                              style: GoogleFonts.spaceMono(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF059669),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                    loading: () => const SizedBox.shrink(),
+                                    error: (_, __) => const SizedBox.shrink(),
                                   ),
                                 ],
                               ],
