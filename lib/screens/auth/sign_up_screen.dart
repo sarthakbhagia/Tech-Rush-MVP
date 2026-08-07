@@ -101,8 +101,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               role: _selectedRole,
             );
         if (mounted) {
-          // Route based on role
-          context.go(_selectedRole == 'worker' ? '/listings' : '/dashboard');
+          context.go('/dashboard');
         }
       } else {
         final success = await ref

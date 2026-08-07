@@ -108,13 +108,9 @@ class _OtpVerificationWidgetState
         _controllers.map((c) => c.text).join(),
       );
 
-  /// Determines the post-auth route based on role.
+  /// Determines the post-auth route.
   String _postAuthRoute() {
-    // After OTP verification, use profile role if available, else widget.role
-    final profileRole = ref.read(userProfileProvider).role;
-    final effectiveRole =
-        profileRole.isNotEmpty ? profileRole : widget.role;
-    return effectiveRole == 'worker' ? '/listings' : '/dashboard';
+    return '/dashboard';
   }
 
   Future<void> _verifyOtp() async {

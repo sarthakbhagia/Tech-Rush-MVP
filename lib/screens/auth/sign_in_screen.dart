@@ -76,9 +76,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               password: password,
             );
         if (mounted) {
-          // Route based on persisted role from profile
-          final role = ref.read(userProfileProvider).role;
-          context.go(role == 'worker' ? '/listings' : '/dashboard');
+          context.go('/dashboard');
         }
       } else {
         final success = await ref
