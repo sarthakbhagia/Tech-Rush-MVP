@@ -771,44 +771,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
-                  // 4. Categories for Workers to filter
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                l10n.availableWorkCategories,
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.inkPrimary,
-                                  letterSpacing: 0.8,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            Text(
-                              l10n.categoriesCount,
-                              style: GoogleFonts.spaceMono(
-                                fontSize: 10,
-                                color: AppColors.inkMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: AppSpacing.md),
-                        _buildCategoryGrid(context, primaryColor, isEmployer),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xxl + 8),
+
 
                   // 5. Jobs near me feed
                   Padding(

@@ -444,9 +444,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                         return CategoryTile(
                           icon: cat.icon,
                           label: cat.getLocalizedName(l10n),
-                          badgeText: cat.getLocalizedBadge(l10n),
-                          badgeColor: cat.badgeColor ?? primaryColor,
-                          badgeBg: cat.badgeBg ?? subtleColor,
                           onTap: _navigateToAuth,
                         );
                       }).toList(),
