@@ -36,6 +36,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     final l10n = AppLocalizations.of(context)!;
     final currentLocale = ref.watch(localeProvider);
 
+    final primaryColor = isEmployer ? const Color(0xFF943D39) : const Color(0xFF1E5E54);
+    final activeColor = isEmployer ? const Color(0xFFA64A45) : const Color(0xFF2D8073);
+    final subtleColor = isEmployer ? const Color(0xFFF7EBEB) : const Color(0xFFEDF7F5);
+    final shadowColor = isEmployer ? const Color(0x29A64A45) : const Color(0x291E5E54);
+
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
@@ -57,23 +62,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   right: AppSpacing.lg,
                   bottom: AppSpacing.xl,
                 ),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFFA64A45), // Lighter maroon
-                      Color(0xFF943D39), // Base maroon
+                      activeColor,
+                      primaryColor,
                     ],
                   ),
-                  borderRadius: BorderRadius.vertical(
+                  borderRadius: const BorderRadius.vertical(
                     bottom: Radius.circular(28.0),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Color(0x29A64A45),
+                      color: shadowColor,
                       blurRadius: 16.0,
-                      offset: Offset(0, 6),
+                      offset: const Offset(0, 6),
                     ),
                   ],
                 ),
@@ -153,10 +158,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
+                                Icon(
                                   Icons.login_rounded,
                                   size: 13,
-                                  color: AppColors.brand,
+                                  color: primaryColor,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
@@ -164,7 +169,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.brand,
+                                    color: primaryColor,
                                   ),
                                 ),
                               ],
@@ -205,7 +210,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
                                     color: isEmployer
-                                        ? AppColors.brand
+                                        ? primaryColor
                                         : Colors.white,
                                   ),
                                 ),
@@ -230,7 +235,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
                                     color: !isEmployer
-                                        ? AppColors.brand
+                                        ? primaryColor
                                         : Colors.white,
                                   ),
                                 ),
@@ -285,10 +290,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                         child: Row(
                           children: [
                             const SizedBox(width: 14),
-                            const Icon(
+                            Icon(
                               Icons.search_rounded,
                               size: 20,
-                              color: AppColors.brand,
+                              color: primaryColor,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -417,7 +422,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             style: GoogleFonts.spaceMono(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: AppColors.brand,
+                              color: primaryColor,
                             ),
                           ),
                         ),
@@ -440,8 +445,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                           icon: cat.icon,
                           label: cat.getLocalizedName(l10n),
                           badgeText: cat.getLocalizedBadge(l10n),
-                          badgeColor: cat.badgeColor ?? AppColors.brand,
-                          badgeBg: cat.badgeBg ?? const Color(0xFFFFF7ED),
+                          badgeColor: cat.badgeColor ?? primaryColor,
+                          badgeBg: cat.badgeBg ?? subtleColor,
                           onTap: _navigateToAuth,
                         );
                       }).toList(),
@@ -522,7 +527,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
-                                    color: AppColors.brand,
+                                    color: primaryColor,
                                   ),
                                 ),
                                 const SizedBox(height: 2),

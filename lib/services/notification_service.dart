@@ -127,4 +127,31 @@ class NotificationService {
       return 0;
     }
   }
+
+  /// Subscribes to realtime PostgreSQL INSERT/UPDATE/DELETE events on the notifications table for a specific user ID
+  RealtimeChannel subscribeToNotifications({
+    required String userId,
+    required void Function(PostgresChangePayload payload) onEvent,
+  }) {
+    if (kDebugMode) {
+      print('⚡ [NotificationService] Subscribing to realtime notifications for user $userId');
+    }
+    final channel = _client.channel('public:notifications_user_$userId');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.all,
+      schema: 'public',
+      table: 'notifications',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'user_id',
+        value: userId,
+      ),
+      callback: onEvent,
+    ).subscribe((status, [error]) {
+      if (kDebugMode) {
+        print('⚡ [NotificationService] Realtime subscription status: $status, error: $error');
+      }
+    });
+    return channel;
+  }
 }

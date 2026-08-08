@@ -832,7 +832,8 @@ class _ApplicantRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileDetailsProvider(app.workerId));
     final liveUid = SupabaseService().client.auth.currentUser?.id;
-    final viewerIsEmployer = liveUid == job.employerId || user.role == 'employer';
+    final isJobOwner = (liveUid != null && job.employerId != null && liveUid == job.employerId) ||
+                       (user.id != null && job.employerId != null && user.id == job.employerId);
     final viewerIsThisWorker = liveUid == app.workerId || user.id == app.workerId;
     final isCompleted = job.status == 'completed';
 
@@ -930,7 +931,7 @@ class _ApplicantRow extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      isSelected && viewerIsEmployer
+                      isSelected && isJobOwner
                           ? '${app.workerPhone} • ${app.status.toUpperCase()}'
                           : app.status.toUpperCase(),
                       style: GoogleFonts.spaceMono(
@@ -944,7 +945,7 @@ class _ApplicantRow extends ConsumerWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (!isAssigned && app.status != 'rejected' && viewerIsEmployer) ...[
+                  if (!isAssigned && app.status != 'rejected' && isJobOwner) ...[
                     ElevatedButton(
                       onPressed: onAccept,
                       style: ElevatedButton.styleFrom(
@@ -999,7 +1000,7 @@ class _ApplicantRow extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    if (viewerIsEmployer)
+                    if (isJobOwner)
                       GestureDetector(
                         onTap: onRateWorker,
                         child: _buildMiniRateButton('Rate Worker 👍'),

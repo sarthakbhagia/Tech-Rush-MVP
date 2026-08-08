@@ -16,6 +16,20 @@ String _currentUserId() =>
 final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) async {
   final userId = _currentUserId();
   if (userId.isEmpty) return [];
+
+  // Subscribe to realtime changes on notifications table for this user
+  final channel = _notificationService.subscribeToNotifications(
+    userId: userId,
+    onEvent: (payload) {
+      ref.invalidateSelf();
+    },
+  );
+
+  // Clean up and unsubscribe on dispose
+  ref.onDispose(() {
+    channel.unsubscribe();
+  });
+
   return _notificationService.fetchNotifications(userId);
 });
 
