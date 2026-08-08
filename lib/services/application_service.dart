@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/application.dart';
@@ -74,8 +75,7 @@ class ApplicationService {
 
     // Save locally for fallback
     _localApplicationsStore.removeWhere(
-      (a) => a.jobId == jobId && a.workerId == workerId,
-    );
+        (a) => a.jobId == jobId && a.workerId == workerId);
     _localApplicationsStore.add(newApp);
 
     if (!_uuidRegExp.hasMatch(jobId)) {
@@ -84,9 +84,8 @@ class ApplicationService {
 
     try {
       final user = _client.auth.currentUser;
-      final effectiveWorkerId = (user != null && _uuidRegExp.hasMatch(user.id))
-          ? user.id
-          : workerId;
+      final effectiveWorkerId =
+          (user != null && _uuidRegExp.hasMatch(user.id)) ? user.id : workerId;
 
       // Defense-in-depth: check role in database to prevent employers from applying
       if (_uuidRegExp.hasMatch(effectiveWorkerId)) {
@@ -96,9 +95,7 @@ class ApplicationService {
             .eq('id', effectiveWorkerId)
             .maybeSingle();
         if (profileRes != null && profileRes['role'] == 'employer') {
-          throw Exception(
-            'Security violation: Employers are not allowed to apply to jobs.',
-          );
+          throw Exception('Security violation: Employers are not allowed to apply to jobs.');
         }
       }
 
@@ -111,15 +108,11 @@ class ApplicationService {
         'created_at': now.toIso8601String(),
       };
 
-      final res = await _client
-          .from('applications')
-          .insert(payload)
-          .select()
-          .single();
+      final res =
+          await _client.from('applications').insert(payload).select().single();
       if (kDebugMode) {
         print(
-          '✅ [ApplicationService] Applied to job $jobId as worker $effectiveWorkerId',
-        );
+            '✅ [ApplicationService] Applied to job $jobId as worker $effectiveWorkerId');
       }
 
       final application = Application.fromJson(res);
@@ -127,24 +120,20 @@ class ApplicationService {
       // ── Notify employer ──────────────────────────────────────────────────
       final employerId = await _fetchEmployerIdForJob(jobId);
       if (employerId != null) {
-        final notificationWritten = await _notif.insertNotification(
+        unawaited(_notif.insertNotification(
           userId: employerId,
           type: 'application_received',
           title: 'New Application Received',
           body: '$workerName applied for your job.',
           relatedJobId: jobId,
-        );
-        if (!notificationWritten && kDebugMode) {
-          print(
-            '⚠️ [ApplicationService] Application was saved, but employer notification was not created.',
-          );
-        }
+        ));
       }
 
       return application;
     } catch (e) {
       if (kDebugMode) {
-        print('⚠️ [ApplicationService] Error applying to job: $e');
+        print(
+            '⚠️ [ApplicationService] Error applying to job: $e');
       }
       if (_client.auth.currentUser == null) {
         // Fallback for unauthenticated integration tests
@@ -158,9 +147,8 @@ class ApplicationService {
 
   /// Fetches all applications for a specific job (Employer view).
   Future<List<Application>> fetchApplicationsForJob(String jobId) async {
-    final localApps = _localApplicationsStore
-        .where((a) => a.jobId == jobId)
-        .toList();
+    final localApps =
+        _localApplicationsStore.where((a) => a.jobId == jobId).toList();
 
     if (!_uuidRegExp.hasMatch(jobId)) {
       return localApps;
@@ -173,15 +161,13 @@ class ApplicationService {
           .eq('job_id', jobId)
           .order('created_at', ascending: false);
       final List data = res as List;
-      final remoteApps = data
-          .map((json) => Application.fromJson(json))
-          .toList();
+      final remoteApps =
+          data.map((json) => Application.fromJson(json)).toList();
       return remoteApps.isEmpty ? localApps : remoteApps;
     } catch (e) {
       if (kDebugMode) {
         print(
-          '⚠️ [ApplicationService] Error fetching applications for job ($jobId): $e',
-        );
+            '⚠️ [ApplicationService] Error fetching applications for job ($jobId): $e');
       }
       return localApps;
     }
@@ -189,9 +175,8 @@ class ApplicationService {
 
   /// Fetches all applications submitted by a specific worker (Worker view).
   Future<List<Application>> fetchApplicationsForWorker(String workerId) async {
-    final localApps = _localApplicationsStore
-        .where((a) => a.workerId == workerId)
-        .toList();
+    final localApps =
+        _localApplicationsStore.where((a) => a.workerId == workerId).toList();
 
     try {
       final res = await _client
@@ -200,27 +185,21 @@ class ApplicationService {
           .eq('worker_id', workerId)
           .order('created_at', ascending: false);
       final List data = res as List;
-      final remoteApps = data
-          .map((json) => Application.fromJson(json))
-          .toList();
+      final remoteApps =
+          data.map((json) => Application.fromJson(json)).toList();
       return remoteApps.isEmpty ? localApps : remoteApps;
     } catch (e) {
       if (kDebugMode) {
         print(
-          '⚠️ [ApplicationService] Error fetching applications for worker ($workerId): $e',
-        );
+            '⚠️ [ApplicationService] Error fetching applications for worker ($workerId): $e');
       }
       return localApps;
     }
   }
 
   /// Fetches all applications for jobs posted by a specific employer (Employer view).
-  Future<List<Application>> fetchApplicationsForEmployer(
-    String employerId,
-  ) async {
-    final localApps = _localApplicationsStore
-        .where((a) => _uuidRegExp.hasMatch(a.jobId))
-        .toList();
+  Future<List<Application>> fetchApplicationsForEmployer(String employerId) async {
+    final localApps = _localApplicationsStore.where((a) => _uuidRegExp.hasMatch(a.jobId)).toList();
 
     if (!_uuidRegExp.hasMatch(employerId)) {
       return localApps;
@@ -233,33 +212,27 @@ class ApplicationService {
           .eq('jobs.employer_id', employerId)
           .order('created_at', ascending: false);
       final List data = res as List;
-      final remoteApps = data
-          .map((json) => Application.fromJson(json))
-          .toList();
+      final remoteApps =
+          data.map((json) => Application.fromJson(json)).toList();
       return remoteApps;
     } catch (e) {
       if (kDebugMode) {
         print(
-          '⚠️ [ApplicationService] Error fetching applications for employer ($employerId): $e',
-        );
+            '⚠️ [ApplicationService] Error fetching applications for employer ($employerId): $e');
       }
       return localApps;
     }
   }
 
   /// Subscribes to realtime PostgreSQL INSERT events on the applications table
-  RealtimeChannel subscribeToApplications(
-    void Function(PostgresChangePayload payload) onEvent,
-  ) {
+  RealtimeChannel subscribeToApplications(void Function(PostgresChangePayload payload) onEvent) {
     final channel = _client.channel('public:applications_realtime');
-    channel
-        .onPostgresChanges(
-          event: PostgresChangeEvent.insert,
-          schema: 'public',
-          table: 'applications',
-          callback: onEvent,
-        )
-        .subscribe();
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'applications',
+      callback: onEvent,
+    ).subscribe();
     return channel;
   }
 
@@ -275,92 +248,45 @@ class ApplicationService {
     required String workerId,
     required String status,
   }) async {
-    if (status != 'assigned' && status != 'rejected') {
-      if (kDebugMode) {
-        print(
-          '⚠️ [ApplicationService] Unsupported application status: $status',
-        );
-      }
-      return false;
-    }
-
-    // The client guard mirrors the database policy. It prevents a caller from
-    // updating optimistic/local state when they are not the job owner.
-    if (!_uuidRegExp.hasMatch(jobId) || !_uuidRegExp.hasMatch(applicationId)) {
-      if (kDebugMode) {
-        print(
-          '⚠️ [ApplicationService] Cannot manage a non-persisted application.',
-        );
-      }
-      return false;
-    }
-
-    final currentUserId = _client.auth.currentUser?.id;
-    if (currentUserId == null) {
-      if (kDebugMode) {
-        print(
-          '⚠️ [ApplicationService] Application status update denied: no session.',
-        );
-      }
-      return false;
-    }
-
-    final jobContext = await _fetchJobContext(jobId);
-    if (jobContext['employer_id'] != currentUserId) {
-      if (kDebugMode) {
-        print(
-          '⚠️ [ApplicationService] Application status update denied: user does not own job $jobId.',
-        );
-      }
-      return false;
-    }
-
     // 1. Update in-memory local store
     for (int i = 0; i < _localApplicationsStore.length; i++) {
       if (_localApplicationsStore[i].id == applicationId) {
-        _localApplicationsStore[i] = _localApplicationsStore[i].copyWith(
-          status: status,
-        );
+        _localApplicationsStore[i] =
+            _localApplicationsStore[i].copyWith(status: status);
       } else if (status == 'assigned' &&
           _localApplicationsStore[i].jobId == jobId) {
-        _localApplicationsStore[i] = _localApplicationsStore[i].copyWith(
-          status: 'rejected',
-        );
+        _localApplicationsStore[i] =
+            _localApplicationsStore[i].copyWith(status: 'rejected');
       }
     }
 
-    // 2. Update remote application status. RLS independently requires this
-    // current user to own the job associated with the application.
-    try {
-      await _client
-          .from('applications')
-          .update({'status': status})
-          .eq('id', applicationId);
-
-      if (status == 'assigned') {
-        // Reject all other pending applications for this job in database.
+    // 2. Update remote application status if both IDs are valid UUIDs
+    if (_uuidRegExp.hasMatch(jobId) && _uuidRegExp.hasMatch(applicationId)) {
+      try {
         await _client
             .from('applications')
-            .update({'status': 'rejected'})
-            .eq('job_id', jobId)
-            .neq('id', applicationId);
+            .update({'status': status}).eq('id', applicationId);
+
+        if (status == 'assigned') {
+          // Reject all other pending applications for this job in database
+          await _client
+              .from('applications')
+              .update({'status': 'rejected'})
+              .eq('job_id', jobId)
+              .neq('id', applicationId);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ [ApplicationService] Remote application status update failed: $e');
+        }
       }
-    } catch (e) {
-      if (kDebugMode) {
-        print(
-          '⚠️ [ApplicationService] Remote application status update failed: $e',
-        );
-      }
-      return false;
     }
 
     // 3. Update remote job status and notify if jobId is a valid UUID
     if (_uuidRegExp.hasMatch(jobId)) {
       try {
         if (status == 'assigned') {
-          final effectiveWorkerUuid = _uuidRegExp.hasMatch(workerId)
-              ? workerId
-              : null;
+          final effectiveWorkerUuid = _uuidRegExp.hasMatch(workerId) ? workerId : null;
           await JobService().updateJobStatus(
             jobId: jobId,
             status: 'assigned',
@@ -372,36 +298,30 @@ class ApplicationService {
           final effectiveWorkerId = _uuidRegExp.hasMatch(workerId)
               ? workerId
               : _localApplicationsStore
-                    .firstWhere(
-                      (a) => a.id == applicationId,
-                      orElse: () => Application(
-                        id: '',
-                        jobId: jobId,
-                        workerId: '',
-                        workerName: workerName,
-                        workerPhone: '',
-                        status: status,
-                        createdAt: DateTime.now(),
-                      ),
-                    )
-                    .workerId;
+                      .firstWhere(
+                        (a) => a.id == applicationId,
+                        orElse: () => Application(
+                            id: '',
+                            jobId: jobId,
+                            workerId: '',
+                            workerName: workerName,
+                            workerPhone: '',
+                            status: status,
+                            createdAt: DateTime.now()),
+                      )
+                      .workerId;
 
           if (_uuidRegExp.hasMatch(effectiveWorkerId)) {
             // Fetch job title for the notification body
             final jobCtx = await _fetchJobContext(jobId);
             final jobTitle = jobCtx['job_title'] ?? 'a job';
-            final notificationWritten = await _notif.insertNotification(
+            unawaited(_notif.insertNotification(
               userId: effectiveWorkerId,
               type: 'job_accepted',
               title: 'Application Accepted! 🎉',
               body: 'Your application for "$jobTitle" has been accepted.',
               relatedJobId: jobId,
-            );
-            if (!notificationWritten && kDebugMode) {
-              print(
-                '⚠️ [ApplicationService] Application status was saved, but worker notification was not created.',
-              );
-            }
+            ));
           }
         } else {
           // Update job to other status (like completed/etc)

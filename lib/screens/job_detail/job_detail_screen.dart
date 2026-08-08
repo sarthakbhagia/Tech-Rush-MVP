@@ -24,7 +24,10 @@ import '../../providers/review_provider.dart';
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
 
-  const JobDetailScreen({super.key, this.jobId = 'job-1'});
+  const JobDetailScreen({
+    super.key,
+    this.jobId = 'job-1',
+  });
 
   @override
   ConsumerState<JobDetailScreen> createState() => _JobDetailScreenState();
@@ -64,15 +67,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
     setState(() => _isApplying = true);
 
     // Resolve the real UUID — prefer live Supabase session over provider state
-    final resolvedId =
-        liveUser?.id ??
+    final resolvedId = liveUser?.id ??
         (user.id?.isNotEmpty == true ? user.id! : null) ??
         (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
 
     try {
-      final app = await ref
-          .read(applicationServiceProvider)
-          .applyToJob(
+      final app = await ref.read(applicationServiceProvider).applyToJob(
             jobId: job.id,
             workerId: resolvedId,
             workerName: user.name.isNotEmpty
@@ -204,10 +204,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: AppColors.inkPrimary,
-          ),
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.inkPrimary),
           onPressed: () {
             if (context.canPop()) {
               context.pop();
@@ -226,7 +223,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: AppColors.border, height: 1.0),
+          child: Container(
+            color: AppColors.border,
+            height: 1.0,
+          ),
         ),
       ),
       body: asyncJob.when(
@@ -238,8 +238,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 child: EmptyState(
                   icon: Icons.work_off_outlined,
                   title: 'Job Dispatch Not Found',
-                  description:
-                      'The requested job posting could not be found or has been un-published.',
+                  description: 'The requested job posting could not be found or has been un-published.',
                 ),
               ),
             );
@@ -249,26 +248,17 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           final isCompleted = job.status == 'completed';
           final currentStep = isCompleted
               ? JobStepStatus.completed
-              : (isAssigned ? JobStepStatus.assigned : JobStepStatus.posted);
+              : (isAssigned
+                  ? JobStepStatus.assigned
+                  : JobStepStatus.posted);
 
           final asyncApps = ref.watch(jobApplicationsProvider(job.id));
           final applications = asyncApps.asData?.value ?? [];
           final liveUid = SupabaseService().client.auth.currentUser?.id;
-          final viewerId = liveUid ?? user.id;
-          // Applicant management is a property of this job, not the account's
-          // selected role. A user must be the employer recorded on this job.
-          final viewerOwnsJob = viewerId != null && viewerId == job.employerId;
-          // RLS already returns only relevant applications. Keep the UI safe if
-          // a stale/local response is broader than it should be.
-          final visibleApplications = viewerOwnsJob
-              ? applications
-              : applications.where((app) => app.workerId == viewerId).toList();
-          final employerProfileAsync =
-              job.employerId != null && job.employerId!.isNotEmpty
+          final employerProfileAsync = job.employerId != null && job.employerId!.isNotEmpty
               ? ref.watch(profileDetailsProvider(job.employerId!))
               : null;
-          final employerPhotoUrl =
-              employerProfileAsync?.valueOrNull?['photo_url'] as String?;
+          final employerPhotoUrl = employerProfileAsync?.valueOrNull?['photo_url'] as String?;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -331,8 +321,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                             status: isCompleted
                                 ? StatusChipType.completed
                                 : (isAssigned
-                                      ? StatusChipType.assigned
-                                      : StatusChipType.open),
+                                    ? StatusChipType.assigned
+                                    : StatusChipType.open),
                           ),
                         ],
                       ),
@@ -454,12 +444,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 ),
                 const SizedBox(height: AppSpacing.xl),
 
-                // Employers see applicants on their own jobs. Workers see only
-                // their own read-only application status.
+                // Applicant List (For Employer or viewable applications)
                 Text(
-                  viewerOwnsJob
-                      ? '${l10n.jobDetailApplicantBids} (${visibleApplications.length})'
-                      : 'YOUR APPLICATION',
+                  '${l10n.jobDetailApplicantBids} (${applications.length})',
                   style: GoogleFonts.spaceMono(
                     fontSize: 10,
                     fontWeight: FontWeight.w500,
@@ -469,7 +456,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
 
-                if (visibleApplications.isEmpty)
+                if (applications.isEmpty)
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
@@ -479,18 +466,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                     ),
                     child: Text(
                       l10n.jobDetailNoApps,
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: AppColors.inkMuted,
-                      ),
+                      style: GoogleFonts.inter(fontSize: 12, color: AppColors.inkMuted),
                     ),
                   )
                 else
                   Column(
-                    children: visibleApplications.map((app) {
+                    children: applications.map((app) {
                       final isSelected = app.status == 'assigned';
-                      final liveUid =
-                          SupabaseService().client.auth.currentUser?.id;
+                      final liveUid = SupabaseService().client.auth.currentUser?.id;
 
                       return _ApplicantRow(
                         app: app,
@@ -498,7 +481,6 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                         user: user,
                         isSelected: isSelected,
                         isAssigned: isAssigned,
-                        canManageApplication: viewerOwnsJob,
                         onAccept: () => _handleAcceptApplication(app, job),
                         onReject: () => _handleRejectApplication(app, job),
                         onRateWorker: () async {
@@ -506,9 +488,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                             await ref
                                 .read(jobServiceProvider)
                                 .updateJobStatus(
-                                  jobId: job.id,
-                                  status: 'completed',
-                                );
+                                    jobId: job.id,
+                                    status: 'completed');
                             ref.invalidate(jobDetailProvider(job.id));
                             ref.invalidate(jobsByCategoryProvider);
                             ref.invalidate(filteredJobsProvider);
@@ -548,8 +529,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             ),
           );
         },
-        loading: () =>
-            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        loading: () => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
         error: (err, stack) => Scaffold(
           body: Center(
             child: Text(
@@ -567,17 +549,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           final bottomWorkerId = user.id?.isNotEmpty == true
               ? user.id!
               : (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
-          final hasApplied = applications.any(
-            (a) => a.workerId == bottomWorkerId,
-          );
+          final hasApplied = applications.any((a) => a.workerId == bottomWorkerId);
           final isAssigned = job.status == 'assigned';
           final isCompleted = job.status == 'completed';
 
           final liveUid = SupabaseService().client.auth.currentUser?.id;
           final loggedInEmployer = user.isLoggedIn && user.role == 'employer';
-          final isOwner =
-              (liveUid != null && liveUid == job.employerId) ||
-              (user.id != null && user.id == job.employerId);
+          final isOwner = (liveUid != null && liveUid == job.employerId) ||
+                          (user.id != null && user.id == job.employerId);
 
           if (loggedInEmployer) {
             if (isOwner) {
@@ -588,15 +567,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   ctaLabel: 'Mark Job as Completed',
                   isLoading: false,
                   disabled: false,
-                  icon: const Icon(
-                    Icons.check_circle_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+                  icon: const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
                   onCta: () async {
-                    final success = await ref
-                        .read(jobServiceProvider)
-                        .updateJobStatus(jobId: job.id, status: 'completed');
+                    final success = await ref.read(jobServiceProvider).updateJobStatus(
+                          jobId: job.id,
+                          status: 'completed',
+                        );
                     if (success) {
                       ref.invalidate(jobDetailProvider(job.id));
                       ref.invalidate(jobsByCategoryProvider);
@@ -607,10 +583,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                             backgroundColor: AppColors.brand,
                             content: Text(
                               'Job marked as completed!',
-                              style: GoogleFonts.inter(
-                                fontSize: 13,
-                                color: Colors.white,
-                              ),
+                              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
                             ),
                           ),
                         );
@@ -625,11 +598,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   ctaLabel: 'Job Completed',
                   isLoading: false,
                   disabled: true,
-                  icon: const Icon(
-                    Icons.done_all_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+                  icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
                   onCta: () {},
                 );
               } else {
@@ -639,11 +608,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   ctaLabel: 'Awaiting Applicants...',
                   isLoading: false,
                   disabled: true,
-                  icon: const Icon(
-                    Icons.people_outline_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+                  icon: const Icon(Icons.people_outline_rounded, size: 16, color: Colors.white),
                   onCta: () {},
                 );
               }
@@ -655,11 +620,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 ctaLabel: 'Employer Mode',
                 isLoading: false,
                 disabled: true,
-                icon: const Icon(
-                  Icons.lock_outline_rounded,
-                  size: 16,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.lock_outline_rounded, size: 16, color: Colors.white),
                 onCta: () {},
               );
             }
@@ -672,11 +633,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               ctaLabel: 'Job Completed',
               isLoading: false,
               disabled: true,
-              icon: const Icon(
-                Icons.done_all_rounded,
-                size: 16,
-                color: Colors.white,
-              ),
+              icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
               onCta: () {},
             );
           }
@@ -687,23 +644,17 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             ctaLabel: isAssigned
                 ? 'Job Assigned (${job.workerName ?? "Worker"})'
                 : (hasApplied
-                      ? 'Interest Expressed ✓'
-                      : (_isApplying
-                            ? 'Registering Interest...'
-                            : 'Express Interest & Apply')),
+                    ? 'Interest Expressed ✓'
+                    : (_isApplying
+                        ? 'Registering Interest...'
+                        : 'Express Interest & Apply')),
             isLoading: _isApplying,
             disabled: hasApplied || isAssigned,
             icon: (hasApplied || isAssigned)
-                ? const Icon(
-                    Icons.check_circle_outline_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  )
-                : const Icon(
-                    Icons.work_outline_rounded,
-                    size: 16,
-                    color: Colors.white,
-                  ),
+                ? const Icon(Icons.check_circle_outline_rounded,
+                    size: 16, color: Colors.white)
+                : const Icon(Icons.work_outline_rounded,
+                    size: 16, color: Colors.white),
             onCta: () => _handleExpressInterest(job),
           );
         },
@@ -715,17 +666,19 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   Widget _buildDetailCategoryFallback(String category) {
     final catObj = AppCategories.findById(category);
     final icon = catObj?.icon ?? Icons.work_outline_rounded;
-    final prefix = category.length >= 3
-        ? category.substring(0, 3).toUpperCase()
-        : category.toUpperCase();
-
+    final prefix = category.length >= 3 ? category.substring(0, 3).toUpperCase() : category.toUpperCase();
+    
     return Container(
       color: AppColors.surfaceRaised,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 48, color: AppColors.brand),
+            Icon(
+              icon,
+              size: 48,
+              color: AppColors.brand,
+            ),
             const SizedBox(height: 8),
             Text(
               prefix,
@@ -776,8 +729,7 @@ class _WorkerAvatar extends ConsumerWidget {
   const _WorkerAvatar({required this.workerId});
 
   static final _uuidRe = RegExp(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-  );
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -835,23 +787,23 @@ class _WorkerAvatar extends ConsumerWidget {
 /// Provider that fetches photo_url + name for any user profile by ID.
 final profileDetailsProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, userId) async {
-      try {
-        if (userId.isEmpty) return {};
-        final client = SupabaseService().client;
-        final res = await client
-            .from('profiles')
-            .select('full_name, photo_url')
-            .eq('id', userId)
-            .maybeSingle();
-        if (res == null) return {};
-        return {
-          'name': res['full_name']?.toString() ?? '',
-          'photo_url': res['photo_url']?.toString(),
-        };
-      } catch (_) {
-        return {};
-      }
-    });
+  try {
+    if (userId.isEmpty) return {};
+    final client = SupabaseService().client;
+    final res = await client
+        .from('profiles')
+        .select('full_name, photo_url')
+        .eq('id', userId)
+        .maybeSingle();
+    if (res == null) return {};
+    return {
+      'name': res['full_name']?.toString() ?? '',
+      'photo_url': res['photo_url']?.toString(),
+    };
+  } catch (_) {
+    return {};
+  }
+});
 
 class _ApplicantRow extends ConsumerWidget {
   final Application app;
@@ -859,7 +811,6 @@ class _ApplicantRow extends ConsumerWidget {
   final UserProfile user;
   final bool isSelected;
   final bool isAssigned;
-  final bool canManageApplication;
   final VoidCallback onAccept;
   final VoidCallback onReject;
   final VoidCallback onRateWorker;
@@ -871,7 +822,6 @@ class _ApplicantRow extends ConsumerWidget {
     required this.user,
     required this.isSelected,
     required this.isAssigned,
-    required this.canManageApplication,
     required this.onAccept,
     required this.onReject,
     required this.onRateWorker,
@@ -882,17 +832,14 @@ class _ApplicantRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileDetailsProvider(app.workerId));
     final liveUid = SupabaseService().client.auth.currentUser?.id;
-    final viewerIsEmployer = canManageApplication;
-    final viewerIsThisWorker =
-        liveUid == app.workerId || user.id == app.workerId;
+    final viewerIsEmployer = liveUid == job.employerId || user.role == 'employer';
+    final viewerIsThisWorker = liveUid == app.workerId || user.id == app.workerId;
     final isCompleted = job.status == 'completed';
 
     return profileAsync.when(
       data: (profileData) {
         final realName = profileData['name'] as String?;
-        final workerName = realName != null && realName.isNotEmpty
-            ? realName
-            : app.workerName;
+        final workerName = realName != null && realName.isNotEmpty ? realName : app.workerName;
 
         return Container(
           margin: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -929,68 +876,56 @@ class _ApplicantRow extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        ref
-                            .watch(mutualRatingSummaryProvider(app.workerId))
-                            .when(
-                              data: (summary) {
-                                if (summary.totalRatings == 0) {
-                                  return Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 5,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.surfaceRaised,
-                                      borderRadius: BorderRadius.circular(4),
-                                      border: Border.all(
-                                        color: AppColors.border,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'New',
-                                      style: GoogleFonts.spaceMono(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.inkMuted,
-                                      ),
-                                    ),
-                                  );
-                                }
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                    vertical: 2,
+                        ref.watch(mutualRatingSummaryProvider(app.workerId)).when(
+                          data: (summary) {
+                            if (summary.totalRatings == 0) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceRaised,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: Text(
+                                  'New',
+                                  style: GoogleFonts.spaceMono(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.inkMuted,
                                   ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFECFDF5),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: const Color(0xFFA7F3D0),
+                                ),
+                              );
+                            }
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFECFDF5),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFFA7F3D0)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '👍',
+                                    style: const TextStyle(fontSize: 9),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${summary.thumbsUpPercentage}%',
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF059669),
                                     ),
                                   ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        '👍',
-                                        style: const TextStyle(fontSize: 9),
-                                      ),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        '${summary.thumbsUpPercentage}%',
-                                        style: GoogleFonts.spaceMono(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                          color: const Color(0xFF059669),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              loading: () => const SizedBox.shrink(),
-                              error: (_, __) => const SizedBox.shrink(),
-                            ),
+                                ],
+                              ),
+                            );
+                          },
+                          loading: () => const SizedBox.shrink(),
+                          error: (_, __) => const SizedBox.shrink(),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -1000,9 +935,7 @@ class _ApplicantRow extends ConsumerWidget {
                           : app.status.toUpperCase(),
                       style: GoogleFonts.spaceMono(
                         fontSize: 10,
-                        color: isSelected
-                            ? AppColors.brand
-                            : AppColors.inkMuted,
+                        color: isSelected ? AppColors.brand : AppColors.inkMuted,
                       ),
                     ),
                   ],
@@ -1011,9 +944,7 @@ class _ApplicantRow extends ConsumerWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  if (!isAssigned &&
-                      app.status != 'rejected' &&
-                      canManageApplication) ...[
+                  if (!isAssigned && app.status != 'rejected' && viewerIsEmployer) ...[
                     ElevatedButton(
                       onPressed: onAccept,
                       style: ElevatedButton.styleFrom(
@@ -1021,10 +952,7 @@ class _ApplicantRow extends ConsumerWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: AppRadii.pill,
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       ),
                       child: const Text(
                         'Accept',
@@ -1043,10 +971,7 @@ class _ApplicantRow extends ConsumerWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: AppRadii.pill,
                         ),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       ),
                       child: const Text(
                         'Reject',
@@ -1059,10 +984,7 @@ class _ApplicantRow extends ConsumerWidget {
                     ),
                   ] else if (isSelected) ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.brand,
                         borderRadius: AppRadii.pill,

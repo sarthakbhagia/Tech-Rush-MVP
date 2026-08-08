@@ -33,16 +33,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     final isEmployer = _role == GuestRole.employer;
-    // Keep this guest-mode palette in lockstep with the post-auth dashboard.
-    final primaryColor = isEmployer
-        ? const Color(0xFF943D39)
-        : const Color(0xFF1E5E54);
-    final activeColor = isEmployer
-        ? const Color(0xFFA64A45)
-        : const Color(0xFF2D8073);
-    final subtleColor = isEmployer
-        ? const Color(0xFFF7EBEB)
-        : const Color(0xFFEDF7F5);
     final l10n = AppLocalizations.of(context)!;
     final currentLocale = ref.watch(localeProvider);
 
@@ -67,18 +57,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   right: AppSpacing.lg,
                   bottom: AppSpacing.xl,
                 ),
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [activeColor, primaryColor],
+                    colors: [
+                      Color(0xFFA64A45), // Lighter maroon
+                      Color(0xFF943D39), // Base maroon
+                    ],
                   ),
                   borderRadius: BorderRadius.vertical(
                     bottom: Radius.circular(28.0),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: activeColor.withValues(alpha: 0.16),
+                      color: Color(0x29A64A45),
                       blurRadius: 16.0,
                       offset: Offset(0, 6),
                     ),
@@ -113,8 +106,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
                         // Language Toggle Pill
                         GestureDetector(
-                          onTap: () =>
-                              ref.read(localeProvider.notifier).toggleLocale(),
+                          onTap: () => ref.read(localeProvider.notifier).toggleLocale(),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 8,
@@ -161,10 +153,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(
+                                const Icon(
                                   Icons.login_rounded,
                                   size: 13,
-                                  color: primaryColor,
+                                  color: AppColors.brand,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
@@ -172,7 +164,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    color: primaryColor,
+                                    color: AppColors.brand,
                                   ),
                                 ),
                               ],
@@ -199,9 +191,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             child: GestureDetector(
                               onTap: () => _toggleRole(GuestRole.employer),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 7.0,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 7.0),
                                 decoration: BoxDecoration(
                                   color: isEmployer
                                       ? Colors.white
@@ -215,7 +205,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
                                     color: isEmployer
-                                        ? primaryColor
+                                        ? AppColors.brand
                                         : Colors.white,
                                   ),
                                 ),
@@ -226,9 +216,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             child: GestureDetector(
                               onTap: () => _toggleRole(GuestRole.worker),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 7.0,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 7.0),
                                 decoration: BoxDecoration(
                                   color: !isEmployer
                                       ? Colors.white
@@ -242,7 +230,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
                                     color: !isEmployer
-                                        ? primaryColor
+                                        ? AppColors.brand
                                         : Colors.white,
                                   ),
                                 ),
@@ -297,10 +285,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                         child: Row(
                           children: [
                             const SizedBox(width: 14),
-                            Icon(
+                            const Icon(
                               Icons.search_rounded,
                               size: 20,
-                              color: primaryColor,
+                              color: AppColors.brand,
                             ),
                             const SizedBox(width: 8),
                             Expanded(
@@ -353,10 +341,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                               color: Colors.white,
                               shape: BoxShape.circle,
                             ),
-                            child: Icon(
+                            child: const Icon(
                               Icons.verified_user_rounded,
                               size: 24,
-                              color: primaryColor,
+                              color: AppColors.brand,
                             ),
                           ),
                           const SizedBox(width: AppSpacing.md),
@@ -429,7 +417,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             style: GoogleFonts.spaceMono(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: primaryColor,
+                              color: AppColors.brand,
                             ),
                           ),
                         ),
@@ -452,8 +440,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                           icon: cat.icon,
                           label: cat.getLocalizedName(l10n),
                           badgeText: cat.getLocalizedBadge(l10n),
-                          badgeColor: cat.badgeColor ?? primaryColor,
-                          badgeBg: cat.badgeBg ?? subtleColor,
+                          badgeColor: cat.badgeColor ?? AppColors.brand,
+                          badgeBg: cat.badgeBg ?? const Color(0xFFFFF7ED),
                           onTap: _navigateToAuth,
                         );
                       }).toList(),
@@ -534,7 +522,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                   style: GoogleFonts.spaceMono(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,
-                                    color: primaryColor,
+                                    color: AppColors.brand,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -589,3 +577,5 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     );
   }
 }
+
+
