@@ -102,15 +102,28 @@ class RatingService {
             '✅ [RatingService] Submitted thumbs_up=$isThumbsUp for target $rateeId on job $jobId');
       }
 
+      // Fetch rater name for personalized notification body
+      String raterName = 'Someone';
+      if (_uuidRegExp.hasMatch(raterId)) {
+        try {
+          final profileRes = await _client
+              .from('profiles')
+              .select('full_name')
+              .eq('id', raterId)
+              .maybeSingle();
+          if (profileRes != null && profileRes['full_name'] != null) {
+            raterName = profileRes['full_name'].toString();
+          }
+        } catch (_) {}
+      }
+
       // Fire-and-forget notification to the target user
       final emoji = isThumbsUp ? '👍' : '👎';
       unawaited(_notif.insertNotification(
         userId: rateeId,
         type: 'rating_received',
         title: 'You Received a Rating $emoji',
-        body: isThumbsUp
-            ? 'Great job! Someone gave you a thumbs up for your work.'
-            : 'You received a thumbs down. Use feedback to improve.',
+        body: 'You received a new rating from $raterName',
         relatedJobId: jobId,
       ));
 

@@ -57,13 +57,27 @@ class ReviewService {
         print('✅ [ReviewService] Submitted review for worker $workerId: ${res['id']}');
       }
 
+      // Fetch employer name for personalized notification body
+      String employerName = 'An employer';
+      if (_uuidRegExp.hasMatch(employerId)) {
+        try {
+          final profileRes = await _client
+              .from('profiles')
+              .select('full_name')
+              .eq('id', employerId)
+              .maybeSingle();
+          if (profileRes != null && profileRes['full_name'] != null) {
+            employerName = profileRes['full_name'].toString();
+          }
+        } catch (_) {}
+      }
+
       // ── Notify worker ────────────────────────────────────────────────────
-      final stars = rating.clamp(1, 5);
       unawaited(_notif.insertNotification(
         userId: workerId,
         type: 'review_received',
         title: 'You Received a New Review ⭐',
-        body: 'An employer rated you $stars star${stars == 1 ? '' : 's'}${comment != null && comment.trim().isNotEmpty ? ': "${comment.trim()}"' : '.'}',
+        body: 'You received a new rating from $employerName',
         relatedJobId: jobId,
       ));
 

@@ -1572,21 +1572,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               decoration: BoxDecoration(
                                 color: app.status == 'assigned'
                                     ? AppColors.successSubtle
-                                    : (app.status == 'rejected'
-                                        ? AppColors.inkMuted.withValues(alpha: 0.1)
-                                        : primaryColor.withValues(alpha: 0.1)),
+                                    : primaryColor.withValues(alpha: 0.1),
                                 borderRadius: AppRadii.pill,
                               ),
                               child: Text(
-                                app.status.toUpperCase(),
+                                app.status == 'assigned' ? 'ASSIGNED' : 'PENDING',
                                 style: GoogleFonts.spaceMono(
                                   fontSize: 8.5,
                                   fontWeight: FontWeight.bold,
                                   color: app.status == 'assigned'
                                       ? AppColors.success
-                                      : (app.status == 'rejected'
-                                          ? AppColors.inkMuted
-                                          : primaryColor),
+                                      : primaryColor,
                                 ),
                               ),
                             ),

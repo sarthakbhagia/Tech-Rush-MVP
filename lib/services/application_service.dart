@@ -118,15 +118,29 @@ class ApplicationService {
       final application = Application.fromJson(res);
 
       // ── Notify employer ──────────────────────────────────────────────────
-      final employerId = await _fetchEmployerIdForJob(jobId);
-      if (employerId != null) {
-        unawaited(_notif.insertNotification(
-          userId: employerId,
-          type: 'application_received',
-          title: 'New Application Received',
-          body: '$workerName applied for your job.',
-          relatedJobId: jobId,
-        ));
+      try {
+        final jobRes = await _client
+            .from('jobs')
+            .select('employer_id, title')
+            .eq('id', jobId)
+            .maybeSingle();
+        if (jobRes != null) {
+          final employerId = jobRes['employer_id']?.toString();
+          final jobTitle = jobRes['title']?.toString() ?? 'Job';
+          if (employerId != null) {
+            unawaited(_notif.insertNotification(
+              userId: employerId,
+              type: 'application_received',
+              title: 'New Application Received',
+              body: 'New application from $workerName for $jobTitle',
+              relatedJobId: jobId,
+            ));
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ [ApplicationService] Error sending apply notification: $e');
+        }
       }
 
       return application;
@@ -206,11 +220,13 @@ class ApplicationService {
     }
 
     try {
+      print('[fetchApplicationsForEmployer] filtering by employerId: $employerId, auth.currentUser.id: ${_client.auth.currentUser?.id}');
       final res = await _client
           .from('applications')
           .select('*, jobs!inner(employer_id)')
           .eq('jobs.employer_id', employerId)
           .order('created_at', ascending: false);
+      print('[fetchApplicationsForEmployer] raw Supabase result: $res');
       final List data = res as List;
       final remoteApps =
           data.map((json) => Application.fromJson(json)).toList();

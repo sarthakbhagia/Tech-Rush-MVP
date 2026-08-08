@@ -54,7 +54,9 @@ class JobService {
     if (kDebugMode) {
       print('✅ [JobService] Created job in Supabase: ${res['id']}');
     }
-    return Job.fromJson(res);
+    final createdJob = Job.fromJson(res);
+    unawaited(_notifyWorkersOfNewJob(createdJob));
+    return createdJob;
   }
 
   /// Listens to real-time changes on the `jobs` table in Supabase
@@ -297,6 +299,50 @@ class JobService {
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [JobService] _sendCompletionNotifications error: $e');
+      }
+    }
+  }
+
+  Future<void> _notifyWorkersOfNewJob(Job job) async {
+    try {
+      final notif = NotificationService();
+      final res = await _client.from('profiles').select('id, skills').eq('role', 'worker');
+      final List workers = res as List;
+
+      bool matchesCategory(List<String> skills, String category) {
+        final catLower = category.toLowerCase();
+        for (final skill in skills) {
+          final skillLower = skill.toLowerCase();
+          if (skillLower.contains(catLower) || catLower.contains(skillLower)) {
+            return true;
+          }
+          if (catLower == 'painting' && (skillLower.contains('paint') || skillLower.contains('wall'))) return true;
+          if (catLower == 'cleaning' && (skillLower.contains('clean') || skillLower.contains('wash'))) return true;
+          if (catLower == 'plumbing' && (skillLower.contains('plumb') || skillLower.contains('leak'))) return true;
+          if (catLower == 'cooking' && (skillLower.contains('cook') || skillLower.contains('chef') || skillLower.contains('meal'))) return true;
+          if (catLower == 'gardening' && (skillLower.contains('garden') || skillLower.contains('lawn') || skillLower.contains('prun'))) return true;
+          if (catLower == 'electrical' && (skillLower.contains('elect') || skillLower.contains('wiring') || skillLower.contains('mcb'))) return true;
+        }
+        return false;
+      }
+
+      for (final worker in workers) {
+        final workerId = worker['id'] as String;
+        final List skillsRaw = worker['skills'] as List? ?? [];
+        final skills = skillsRaw.map((s) => s.toString()).toList();
+        if (matchesCategory(skills, job.category)) {
+          await notif.insertNotification(
+            userId: workerId,
+            type: 'new_job',
+            title: 'New Matching Job!',
+            body: 'New "${job.title}" posted under "${job.category}".',
+            relatedJobId: job.id,
+          );
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ [_notifyWorkersOfNewJob] Error: $e');
       }
     }
   }
