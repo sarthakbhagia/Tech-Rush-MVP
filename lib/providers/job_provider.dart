@@ -106,6 +106,38 @@ final jobsByEmployerProvider =
   return await jobService.fetchJobsByEmployer(employerId);
 });
 
+/// Provider to fetch all applications received across all jobs of an employer
+final employerApplicationsProvider =
+    FutureProvider.family<List<Application>, String>((ref, employerId) async {
+  final appService = ref.watch(applicationServiceProvider);
+
+  // Fetch employer's active job IDs once to filter incoming realtime applications
+  final jobs = await ref.watch(jobsByEmployerProvider(employerId).future);
+  final jobIds = jobs.map((j) => j.id).toSet();
+
+  // Subscribe to realtime insert events on applications table
+  final channel = appService.subscribeToApplications((payload) {
+    final newRow = payload.newRecord;
+    final jobId = newRow['job_id']?.toString();
+    if (jobId != null && jobIds.contains(jobId)) {
+      // Invalidate stats to update dashboard counts
+      ref.invalidate(dashboardStatsProvider(DashboardStatsParams(
+        userId: employerId,
+        role: 'employer',
+      )));
+      // Invalidate ourselves to fetch the latest applications list
+      ref.invalidateSelf();
+    }
+  });
+
+  // Clean up and unsubscribe on dispose
+  ref.onDispose(() {
+    channel.unsubscribe();
+  });
+
+  return await appService.fetchApplicationsForEmployer(employerId);
+});
+
 /// Parameter object for dashboardStatsProvider — keyed on user ID + role.
 class DashboardStatsParams {
   final String userId;

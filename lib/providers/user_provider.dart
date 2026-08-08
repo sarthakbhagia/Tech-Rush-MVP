@@ -36,7 +36,6 @@ class UserProfileNotifier extends StateNotifier<UserProfile> {
           user = res.user;
         } catch (_) {}
       }
-
       if (user != null) {
         final profile = await _profileService.fetchProfile(user.id);
         if (profile != null) {

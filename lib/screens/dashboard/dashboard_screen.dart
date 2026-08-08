@@ -25,6 +25,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/dashboard_stats_service.dart';
 import '../../models/user_profile.dart';
 import '../../models/job.dart';
+import '../../models/application.dart';
+import '../../providers/review_provider.dart';
+import '../job_detail/job_detail_screen.dart' show profileDetailsProvider;
 
 enum DashboardRole { employer, worker }
 
@@ -208,6 +211,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ? ref.watch(jobsByEmployerProvider(currentUserId))
         : ref.watch(jobsByCategoryProvider('All'));
 
+    final applicationsAsync = isEmployer
+        ? ref.watch(employerApplicationsProvider(currentUserId))
+        : null;
+
     // Dynamic color tokens for Employer vs Worker mode
     final primaryColor = isEmployer ? const Color(0xFF943D39) : const Color(0xFF1E5E54);
     final activeColor = isEmployer ? const Color(0xFFA64A45) : const Color(0xFF2D8073);
@@ -223,9 +230,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         top: false,
         child: RefreshIndicator(
           onRefresh: () async {
-            // Invalidate notification count so they re-fetch from Supabase
             ref.invalidate(notificationsProvider);
             ref.invalidate(dashboardStatsProvider(statsParams));
+            if (isEmployer) {
+              ref.invalidate(jobsByEmployerProvider(currentUserId));
+              ref.invalidate(employerApplicationsProvider(currentUserId));
+            }
             await _loadProfile();
           },
           backgroundColor: AppColors.surface,
@@ -646,52 +656,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
-                  // 2. Category grid for posting jobs
+                  // 2. Dispatch Console & Recent Applicants
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                l10n.postNewJobByCategory,
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.inkPrimary,
-                                  letterSpacing: 0.8,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            GestureDetector(
-                              onTap: () => openPostJobBottomSheet(context, ref),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: subtleColor,
-                                  borderRadius: AppRadii.pill,
-                                  border: Border.all(color: primaryColor),
-                                ),
-                                child: Text(
-                                  l10n.postJobCta,
-                                  style: GoogleFonts.spaceMono(
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.bold,
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                        Text(
+                          currentLocale.languageCode == 'hi' ? 'डिस्पैच कंसोल' : 'DISPATCH CONSOLE',
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.inkMuted,
+                            letterSpacing: 1.0,
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.md),
-                        _buildCategoryGrid(context, primaryColor, isEmployer),
+                        _buildLargePostJobCTA(context, primaryColor, subtleColor),
+                        const SizedBox(height: AppSpacing.xl + 4),
+                        
+                        // Recent Applicants Preview
+                        _buildRecentApplicantsSection(
+                          context,
+                          ref,
+                          applicationsAsync,
+                          dashboardJobsAsync,
+                          primaryColor,
+                          subtleColor,
+                          currentLocale,
+                        ),
                       ],
                     ),
                   ),
@@ -1296,6 +1289,357 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         icon: Icons.work_outline_rounded,
         title: 'No Active Job Postings',
         description: 'Be the first to publish a new job posting on KaamSetu.',
+      ),
+    );
+  }
+
+  Widget _buildLargePostJobCTA(
+    BuildContext context,
+    Color primaryColor,
+    Color subtleColor,
+  ) {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            primaryColor,
+            primaryColor.withValues(alpha: 0.85),
+          ],
+        ),
+        borderRadius: AppRadii.card,
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => openPostJobBottomSheet(context, ref),
+          borderRadius: AppRadii.card,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: AppSpacing.lg),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  ref.watch(localeProvider).languageCode == 'hi'
+                      ? 'नया काम पोस्ट करें (+)'
+                      : '+ POST A NEW JOB DISPATCH',
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentApplicantsSection(
+    BuildContext context,
+    WidgetRef ref,
+    AsyncValue<List<Application>>? applicationsAsync,
+    AsyncValue<List<Job>> dashboardJobsAsync,
+    Color primaryColor,
+    Color subtleColor,
+    Locale currentLocale,
+  ) {
+    if (applicationsAsync == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              currentLocale.languageCode == 'hi' ? 'हाल के आवेदक' : 'RECENT APPLICANTS',
+              style: GoogleFonts.spaceMono(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: AppColors.inkMuted,
+                letterSpacing: 1.0,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        applicationsAsync.when(
+          data: (applications) {
+            if (applications.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 24,
+                  horizontal: AppSpacing.lg,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: AppRadii.card,
+                  border: Border.all(color: AppColors.border, width: 0.8),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_outline_rounded,
+                      size: 32,
+                      color: AppColors.inkMuted.withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      currentLocale.languageCode == 'hi' ? 'कोई हालिया आवेदन नहीं' : 'No applications received yet',
+                      style: GoogleFonts.sora(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.inkPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      currentLocale.languageCode == 'hi'
+                          ? 'एक बार जब कर्मचारी आपके कार्य पर आवेदन करेंगे, तो वे यहाँ दिखाई देंगे।'
+                          : 'Once workers apply to your active job dispatches, they will appear here.',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: AppColors.inkMuted,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final recentApps = applications.take(3).toList();
+            final jobsList = dashboardJobsAsync.valueOrNull ?? [];
+
+            return Column(
+              children: recentApps.map((app) {
+                final job = jobsList.firstWhere(
+                  (j) => j.id == app.jobId,
+                  orElse: () => Job(
+                    id: app.jobId,
+                    title: 'Job Dispatch',
+                    description: '',
+                    category: 'Other',
+                    wage: 650,
+                    verified: false,
+                    status: 'open',
+                    rating: 5.0,
+                    reviewCount: 0,
+                    location: 'Indiranagar',
+                    date: 'Today',
+                    employerName: 'Employer',
+                  ),
+                );
+
+                final profileAsync = ref.watch(profileDetailsProvider(app.workerId));
+                final ratingAsync = ref.watch(mutualRatingSummaryProvider(app.workerId));
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: AppRadii.card,
+                    border: Border.all(color: AppColors.border, width: 0.8),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () => context.push('/job/${app.jobId}'),
+                      borderRadius: AppRadii.card,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            profileAsync.when(
+                              data: (pData) {
+                                final photoUrl = pData['photo_url'] as String?;
+                                final name = pData['name'] as String? ?? app.workerName;
+                                final initials = name.isNotEmpty
+                                    ? name.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase()
+                                    : 'W';
+                                if (photoUrl != null && photoUrl.isNotEmpty) {
+                                  return ClipOval(
+                                    child: Image.network(
+                                      photoUrl,
+                                      width: 42,
+                                      height: 42,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => _buildInitialsAvatar(initials, primaryColor, subtleColor),
+                                    ),
+                                  );
+                                }
+                                return _buildInitialsAvatar(initials, primaryColor, subtleColor);
+                              },
+                              loading: () => _buildInitialsAvatar('…', primaryColor, subtleColor),
+                              error: (_, __) => _buildInitialsAvatar('?', primaryColor, subtleColor),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          app.workerName,
+                                          style: GoogleFonts.sora(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.inkPrimary,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      ratingAsync.when(
+                                        data: (summary) {
+                                          if (summary.totalRatings == 0) {
+                                            return Text(
+                                              currentLocale.languageCode == 'hi' ? 'नया कर्मचारी' : 'New Worker',
+                                              style: GoogleFonts.spaceMono(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: AppColors.inkMuted,
+                                              ),
+                                            );
+                                          }
+                                          return Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Text('👍', style: TextStyle(fontSize: 10)),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                '${summary.thumbsUpPercentage}%',
+                                                style: GoogleFonts.spaceMono(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: AppColors.inkPrimary,
+                                                ),
+                                              ),
+                                            ],
+                                          );
+                                        },
+                                        loading: () => const SizedBox.shrink(),
+                                        error: (_, __) => const SizedBox.shrink(),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '${currentLocale.languageCode == 'hi' ? 'के लिए आवेदन किया:' : 'Applied for:'} ${job.title}',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      color: AppColors.inkMuted,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.md),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: app.status == 'assigned'
+                                    ? AppColors.successSubtle
+                                    : (app.status == 'rejected'
+                                        ? AppColors.inkMuted.withValues(alpha: 0.1)
+                                        : primaryColor.withValues(alpha: 0.1)),
+                                borderRadius: AppRadii.pill,
+                              ),
+                              child: Text(
+                                app.status.toUpperCase(),
+                                style: GoogleFonts.spaceMono(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.bold,
+                                  color: app.status == 'assigned'
+                                      ? AppColors.success
+                                      : (app.status == 'rejected'
+                                          ? AppColors.inkMuted
+                                          : primaryColor),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+          error: (err, _) => Container(
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: AppRadii.card,
+              border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+            ),
+            child: Text(
+              'Error loading applicants: $err',
+              style: GoogleFonts.inter(fontSize: 11, color: AppColors.danger),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInitialsAvatar(String initials, Color primaryColor, Color subtleColor) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        color: subtleColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: primaryColor.withValues(alpha: 0.15), width: 1),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: GoogleFonts.spaceMono(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: primaryColor,
+          ),
+        ),
       ),
     );
   }

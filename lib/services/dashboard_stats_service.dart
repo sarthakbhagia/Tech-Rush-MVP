@@ -79,18 +79,18 @@ class DashboardStatsService {
       //    GET /applications?job_id=in.(subquery) — but PostgREST doesn't support
       //    subqueries in filter values. Instead we fetch job IDs then count applications.
       int appCount = 0;
-      final jobIds = jobRows
-          .map((r) => r['id']?.toString())
-          .where((id) => id != null && id.isNotEmpty)
-          .cast<String>()
-          .toList();
-
-      if (jobIds.isNotEmpty) {
-        final appRes = await _client
-            .from('applications')
-            .select('id')
-            .inFilter('job_id', jobIds);
-        appCount = (appRes as List).length;
+      if (jobRows.isNotEmpty) {
+        try {
+          final appRes = await _client
+              .from('applications')
+              .select('id, jobs!inner(employer_id)')
+              .eq('jobs.employer_id', employerId);
+          appCount = (appRes as List).length;
+        } catch (e) {
+          if (kDebugMode) {
+            print('⚠️ [DashboardStatsService] Error querying applications count: $e');
+          }
+        }
       }
 
       return DashboardStats(

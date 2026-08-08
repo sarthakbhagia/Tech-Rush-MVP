@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/application.dart';
@@ -196,6 +197,45 @@ class ApplicationService {
     }
   }
 
+  /// Fetches all applications for jobs posted by a specific employer (Employer view).
+  Future<List<Application>> fetchApplicationsForEmployer(String employerId) async {
+    final localApps = _localApplicationsStore.where((a) => _uuidRegExp.hasMatch(a.jobId)).toList();
+
+    if (!_uuidRegExp.hasMatch(employerId)) {
+      return localApps;
+    }
+
+    try {
+      final res = await _client
+          .from('applications')
+          .select('*, jobs!inner(employer_id)')
+          .eq('jobs.employer_id', employerId)
+          .order('created_at', ascending: false);
+      final List data = res as List;
+      final remoteApps =
+          data.map((json) => Application.fromJson(json)).toList();
+      return remoteApps;
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+            '⚠️ [ApplicationService] Error fetching applications for employer ($employerId): $e');
+      }
+      return localApps;
+    }
+  }
+
+  /// Subscribes to realtime PostgreSQL INSERT events on the applications table
+  RealtimeChannel subscribeToApplications(void Function(PostgresChangePayload payload) onEvent) {
+    final channel = _client.channel('public:applications_realtime');
+    channel.onPostgresChanges(
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'applications',
+      callback: onEvent,
+    ).subscribe();
+    return channel;
+  }
+
   // ── Update Status ────────────────────────────────────────────────────────
 
   /// Updates status of an application ('assigned' / 'rejected').
@@ -297,6 +337,3 @@ class ApplicationService {
     return true;
   }
 }
-
-/// Fire-and-forget helper — suppresses the "unawaited future" lint.
-void unawaited(Future<void> future) {}
