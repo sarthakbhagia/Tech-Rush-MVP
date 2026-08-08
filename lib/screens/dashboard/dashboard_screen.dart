@@ -41,6 +41,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   DashboardRole _role = DashboardRole.employer;
   bool _isLoading = true;
+  double _postJobCTAScale = 1.0;
 
   @override
   void initState() {
@@ -1261,54 +1262,64 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     Color primaryColor,
     Color subtleColor,
   ) {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            primaryColor,
-            primaryColor.withValues(alpha: 0.85),
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _postJobCTAScale = 0.96),
+      onTapUp: (_) => setState(() => _postJobCTAScale = 1.0),
+      onTapCancel: () => setState(() => _postJobCTAScale = 1.0),
+      onTap: () => openPostJobBottomSheet(context, ref),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeInOut,
+        transform: Matrix4.identity()..scale(_postJobCTAScale),
+        transformAlignment: Alignment.center,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              primaryColor,
+              primaryColor.withValues(alpha: 0.85),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(100),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
-        borderRadius: AppRadii.card,
-        boxShadow: [
-          BoxShadow(
-            color: primaryColor.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => openPostJobBottomSheet(context, ref),
-          borderRadius: AppRadii.card,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: AppSpacing.lg),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.add_circle_outline_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  ref.watch(localeProvider).languageCode == 'hi'
-                      ? 'नया काम पोस्ट करें (+)'
-                      : '+ POST A NEW JOB DISPATCH',
-                  style: GoogleFonts.spaceMono(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 1.0,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(100),
+          child: InkWell(
+            onTap: () => openPostJobBottomSheet(context, ref),
+            borderRadius: BorderRadius.circular(100),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: AppSpacing.lg),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    ref.watch(localeProvider).languageCode == 'hi'
+                        ? 'नया काम पोस्ट करें (+)'
+                        : '+ POST A NEW JOB DISPATCH',
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.0,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
