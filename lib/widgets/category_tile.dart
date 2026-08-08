@@ -9,6 +9,7 @@ class CategoryTile extends StatelessWidget {
   final Color? badgeColor;
   final Color? badgeBg;
   final VoidCallback onTap;
+  final Color? iconColor;
 
   const CategoryTile({
     super.key,
@@ -18,6 +19,7 @@ class CategoryTile extends StatelessWidget {
     this.badgeColor,
     this.badgeBg,
     required this.onTap,
+    this.iconColor,
   });
 
   @override
@@ -52,7 +54,7 @@ class CategoryTile extends StatelessWidget {
                   child: Icon(
                     icon,
                     size: 20,
-                    color: AppColors.brand,
+                    color: iconColor ?? AppColors.brand,
                   ),
                 ),
                 const SizedBox(height: 8),

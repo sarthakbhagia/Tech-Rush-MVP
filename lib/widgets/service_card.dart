@@ -15,6 +15,7 @@ class ServiceCard extends StatefulWidget {
   final double? originalPrice;
   final bool verified;
   final VoidCallback? onSelect;
+  final Color? accentColor;
 
   const ServiceCard({
     super.key,
@@ -27,6 +28,7 @@ class ServiceCard extends StatefulWidget {
     this.originalPrice,
     this.verified = true,
     this.onSelect,
+    this.accentColor,
   });
 
   @override
@@ -146,7 +148,7 @@ class _ServiceCardState extends State<ServiceCard> {
                           style: GoogleFonts.spaceMono(
                             fontSize: 9.0,
                             fontWeight: FontWeight.w600,
-                            color: AppColors.brand,
+                            color: widget.accentColor ?? AppColors.brand,
                           ),
                         ),
                       ),
@@ -241,7 +243,7 @@ class _ServiceCardState extends State<ServiceCard> {
                               style: GoogleFonts.spaceMono(
                                 fontSize: 15.0,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.brand,
+                                color: widget.accentColor ?? AppColors.brand,
                                 height: 1.2,
                               ),
                             ),
