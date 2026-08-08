@@ -9,14 +9,14 @@ class JobFilterState {
   const JobFilterState({
     this.categories = const {},
     this.minPrice = 500.0,
-    this.maxPrice = 3000.0,
+    this.maxPrice = 10000.0,
     this.sortBy = 'most_recent',
   });
 
   bool get isActive =>
       categories.isNotEmpty ||
       minPrice > 500.0 ||
-      maxPrice < 3000.0 ||
+      maxPrice < 10000.0 ||
       sortBy != 'most_recent';
 
   int get activeCount {

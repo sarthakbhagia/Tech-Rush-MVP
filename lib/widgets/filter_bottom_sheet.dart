@@ -70,7 +70,7 @@ class __FilterBottomSheetContentState
   void _resetTempFilters() {
     setState(() {
       _tempCategories.clear();
-      _tempPriceRange = const RangeValues(500.0, 3000.0);
+      _tempPriceRange = const RangeValues(500.0, 10000.0);
       _tempSortBy = 'most_recent';
     });
   }
@@ -196,8 +196,8 @@ class __FilterBottomSheetContentState
         RangeSlider(
           values: _tempPriceRange,
           min: 500.0,
-          max: 3000.0,
-          divisions: 25,
+          max: 10000.0,
+          divisions: 19,
           activeColor: AppColors.brand,
           inactiveColor: AppColors.border,
           labels: RangeLabels(
