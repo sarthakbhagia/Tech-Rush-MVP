@@ -5,9 +5,9 @@ import 'supabase_service.dart';
 
 /// Service for all Supabase interactions with the `notifications` table.
 ///
-/// All public methods are fire-and-forget safe — they catch exceptions
-/// internally and log them in debug mode so that a notification failure
-/// never crashes the triggering action (apply, accept, complete, review).
+/// Notification writes report success to the caller and log a concrete error
+/// in debug builds. This keeps the primary action resilient without hiding a
+/// failed notification write.
 class NotificationService {
   final SupabaseClient _client = SupabaseService().client;
 
@@ -19,7 +19,7 @@ class NotificationService {
 
   /// Inserts a notification row for [userId].
   /// Silently swallows errors so callers are never blocked.
-  Future<void> insertNotification({
+  Future<bool> insertNotification({
     required String userId,
     required String type,
     required String title,
@@ -28,9 +28,11 @@ class NotificationService {
   }) async {
     if (!_uuidRegExp.hasMatch(userId)) {
       if (kDebugMode) {
-        print('⚠️ [NotificationService] Skipping insert — userId is not a UUID: $userId');
+        print(
+          '⚠️ [NotificationService] Skipping insert — userId is not a UUID: $userId',
+        );
       }
-      return;
+      return false;
     }
 
     try {
@@ -45,14 +47,18 @@ class NotificationService {
         payload['related_job_id'] = relatedJobId;
       }
 
-      await _client.from('notifications').insert(payload);
+      await _client.from('notifications').insert(payload).select().single();
       if (kDebugMode) {
-        print('✅ [NotificationService] Inserted [$type] notification for user $userId');
+        print(
+          '✅ [NotificationService] Inserted [$type] notification for user $userId',
+        );
       }
+      return true;
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [NotificationService] insertNotification failed: $e');
       }
+      return false;
     }
   }
 
@@ -126,5 +132,41 @@ class NotificationService {
       }
       return 0;
     }
+  }
+
+  /// Listens for notification changes for one user. Both the bell and the
+  /// Notifications screen use the provider that owns this subscription.
+  RealtimeChannel subscribeToNotifications({
+    required String userId,
+    required void Function(PostgresChangePayload payload) onEvent,
+  }) {
+    final channel = _client.channel('public:notifications:$userId');
+    channel
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (payload) {
+            if (kDebugMode) {
+              print(
+                '✅ [NotificationService] Realtime event: ${payload.eventType}',
+              );
+            }
+            onEvent(payload);
+          },
+        )
+        .subscribe((status, error) {
+          if (kDebugMode) {
+            print(
+              'ℹ️ [NotificationService] Realtime status: $status${error == null ? '' : ' ($error)'}',
+            );
+          }
+        });
+    return channel;
   }
 }

@@ -6,16 +6,24 @@ import '../services/notification_service.dart';
 final _notificationService = NotificationService();
 
 /// Resolves the current authenticated user's ID, or empty string if not logged in.
-String _currentUserId() =>
-    Supabase.instance.client.auth.currentUser?.id ?? '';
+String _currentUserId() => Supabase.instance.client.auth.currentUser?.id ?? '';
 
 // ── Read Providers ────────────────────────────────────────────────────────
 
 /// Fetches all notifications for the current user, ordered newest-first.
 /// Watch this in the notifications screen and the bell badge.
-final notificationsProvider = FutureProvider<List<NotificationItem>>((ref) async {
+final notificationsProvider = FutureProvider<List<NotificationItem>>((
+  ref,
+) async {
   final userId = _currentUserId();
   if (userId.isEmpty) return [];
+
+  final channel = _notificationService.subscribeToNotifications(
+    userId: userId,
+    onEvent: (_) => ref.invalidateSelf(),
+  );
+  ref.onDispose(channel.unsubscribe);
+
   return _notificationService.fetchNotifications(userId);
 });
 
