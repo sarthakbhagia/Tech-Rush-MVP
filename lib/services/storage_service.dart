@@ -107,4 +107,37 @@ class StorageService {
       return null;
     }
   }
+
+  /// Uploads a completion proof photo to 'job-images/{jobId}/completion/' and returns public URL.
+  Future<String?> uploadCompletionProof(XFile imageFile, String jobId) async {
+    try {
+      final fileExt = imageFile.name.split('.').last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final path = '$jobId/completion/$fileName';
+
+      final bytes = await imageFile.readAsBytes();
+
+      if (kIsWeb) {
+        await _client.storage.from('job-images').uploadBinary(path, bytes);
+      } else {
+        final file = File(imageFile.path);
+        await _client.storage.from('job-images').upload(
+              path,
+              file,
+              fileOptions: const FileOptions(cacheControl: '3600', upsert: false),
+            );
+      }
+
+      final publicUrl = _client.storage.from('job-images').getPublicUrl(path);
+      if (kDebugMode) {
+        print('✅ [StorageService] Uploaded completion proof: $publicUrl');
+      }
+      return publicUrl;
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ [StorageService] Error uploading completion proof: $e');
+      }
+      return null;
+    }
+  }
 }

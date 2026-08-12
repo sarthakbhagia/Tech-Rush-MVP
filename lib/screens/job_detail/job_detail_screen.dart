@@ -29,6 +29,9 @@ import '../../services/notification_service.dart';
 import '../../providers/worker_match_provider.dart';
 import '../../providers/payout_provider.dart';
 import '../../models/payout.dart';
+import '../../providers/completion_proof_provider.dart';
+import '../../models/completion_proof.dart';
+import 'completion_proof_bottom_sheet.dart';
 
 
 /// Provider that fetches photo_url + name for any user profile by ID.
@@ -293,11 +296,18 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             );
           }
 
+          // ── Status helpers ──────────────────────────────────────────────
           final isAssigned = job.status == 'assigned';
+          final isOnTheWay = job.status == 'on_the_way';
+          final isArrived = job.status == 'arrived';
+          final isWorking = job.status == 'working';
+          final isProofSubmitted = job.status == 'proof_submitted';
           final isCompleted = job.status == 'completed';
+          final isInProgress = isOnTheWay || isArrived || isWorking || isProofSubmitted;
+
           final currentStep = isCompleted
               ? JobStepStatus.completed
-              : (isAssigned
+              : (isAssigned || isInProgress
                   ? JobStepStatus.assigned
                   : JobStepStatus.posted);
 
@@ -314,10 +324,17 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           final isJobOwner = job.employerId != null && resolvedReporterId == job.employerId;
           final isAssignedWorker = applications.any((a) => a.status == 'assigned' && a.workerId == resolvedReporterId);
           final viewerIsParticipant = isJobOwner || isAssignedWorker;
+
+          // ── Payout & Proof ─────────────────────────────────────────────
           final payoutAsync = isCompleted
               ? ref.watch(jobPayoutProvider(job.id))
               : const AsyncValue<Payout?>.data(null);
           final payout = payoutAsync.asData?.value;
+
+          final proofAsync = (isAssigned || isInProgress || isCompleted)
+              ? ref.watch(completionProofForJobProvider(job.id))
+              : const AsyncValue<CompletionProof?>.data(null);
+          final proof = proofAsync.asData?.value;
 
           return SingleChildScrollView(
 
@@ -442,10 +459,31 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 JobStatusStepper(currentStatus: currentStep),
                 const SizedBox(height: AppSpacing.lg),
 
+                // ── Worker: Job Timeline Card (if assigned worker) ──────────
+                if (isAssignedWorker && !isCompleted)
+                  _buildWorkerTimeline(context, ref, job, resolvedReporterId),
+
+                // ── Employer: Worker Progress Card (if job is in progress) ─
+                if (isJobOwner && (isInProgress || isProofSubmitted)) ...[  
+                  _buildEmployerProgressView(job),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+
+                // ── Employer: Completion Verification Card ────────────────
+                if (isJobOwner && isProofSubmitted) ...[  
+                  _buildEmployerProofVerification(
+                    context, ref, job,
+                    resolvedReporterId,
+                    applications,
+                    proof,
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+
+                // ── Payment Stepper (after completion) ────────────────────
                 if (isCompleted && viewerIsParticipant) ...[
                   _buildPaymentStepper(payout, job.wage),
                 ],
-
 
                 if (isJobOwner) ...[
                   RecommendedWorkersSection(job: job),
@@ -649,51 +687,62 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               : (user.phone.isNotEmpty ? user.phone : 'worker_${user.name}');
           final hasApplied = applications.any((a) => a.workerId == bottomWorkerId);
           final isAssigned = job.status == 'assigned';
+          final isOnTheWay = job.status == 'on_the_way';
+          final isArrived = job.status == 'arrived';
+          final isWorking = job.status == 'working';
+          final isProofSubmitted = job.status == 'proof_submitted';
           final isCompleted = job.status == 'completed';
+          final isInProgress = isOnTheWay || isArrived || isWorking || isProofSubmitted;
 
           final liveUid = SupabaseService().client.auth.currentUser?.id;
           final loggedInEmployer = user.isLoggedIn && user.role == 'employer';
           final isOwner = (liveUid != null && liveUid == job.employerId) ||
                           (user.id != null && user.id == job.employerId);
+          final resolvedReporterId = (user.isLoggedIn && user.id != null && user.id!.isNotEmpty)
+              ? user.id!
+              : (liveUid ?? activeUserId);
+          final isAssignedWorker = applications.any(
+              (a) => a.status == 'assigned' && a.workerId == resolvedReporterId);
 
+          // ── Employer bottom bar ───────────────────────────────────────
           if (loggedInEmployer) {
             if (isOwner) {
-              if (isAssigned) {
+              if (isProofSubmitted) {
+                // Employer sees a CTA to scroll up and review proof
+                return StickyBottomBar(
+                  label: 'PROOF SUBMITTED',
+                  price: job.wage,
+                  ctaLabel: 'Review & Verify Completion ↑',
+                  isLoading: false,
+                  disabled: false,
+                  icon: const Icon(Icons.verified_outlined, size: 16, color: Colors.white),
+                  onCta: () {},
+                );
+              } else if (isInProgress) {
+                return StickyBottomBar(
+                  label: 'WORKER IN PROGRESS',
+                  price: job.wage,
+                  ctaLabel: 'Awaiting Completion Proof...',
+                  isLoading: false,
+                  disabled: true,
+                  icon: const Icon(Icons.access_time_rounded, size: 16, color: Colors.white),
+                  onCta: () {},
+                );
+              } else if (isAssigned) {
                 return StickyBottomBar(
                   label: 'STATUS: ASSIGNED',
                   price: job.wage,
-                  ctaLabel: 'Mark Job as Completed',
+                  ctaLabel: 'Awaiting Worker Check-in...',
                   isLoading: false,
-                  disabled: false,
-                  icon: const Icon(Icons.check_circle_rounded, size: 16, color: Colors.white),
-                  onCta: () async {
-                    final success = await ref.read(jobServiceProvider).updateJobStatus(
-                          jobId: job.id,
-                          status: 'completed',
-                        );
-                    if (success) {
-                      ref.invalidate(jobDetailProvider(job.id));
-                      ref.invalidate(jobsByCategoryProvider);
-                      ref.invalidate(filteredJobsProvider);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: AppColors.brand,
-                            content: Text(
-                              'Job marked as completed!',
-                              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  },
+                  disabled: true,
+                  icon: const Icon(Icons.directions_walk_rounded, size: 16, color: Colors.white),
+                  onCta: () {},
                 );
               } else if (isCompleted) {
                 return StickyBottomBar(
                   label: 'STATUS: COMPLETED',
                   price: job.wage,
-                  ctaLabel: 'Job Completed',
+                  ctaLabel: 'Job Completed ✓',
                   isLoading: false,
                   disabled: true,
                   icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
@@ -711,7 +760,6 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 );
               }
             } else {
-              // Viewing someone else's job as an employer
               return StickyBottomBar(
                 label: 'DAILY RATE',
                 price: job.wage,
@@ -728,7 +776,7 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             return StickyBottomBar(
               label: 'STATUS: COMPLETED',
               price: job.wage,
-              ctaLabel: 'Job Completed',
+              ctaLabel: 'Job Completed ✓',
               isLoading: false,
               disabled: true,
               icon: const Icon(Icons.done_all_rounded, size: 16, color: Colors.white),
@@ -736,10 +784,96 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
             );
           }
 
+          // ── Worker assigned: sequential check-in bottom bar ──────────
+          final isThisWorker = isAssignedWorker;
+
+          if (isThisWorker && isProofSubmitted) {
+            return StickyBottomBar(
+              label: 'PROOF SUBMITTED',
+              price: job.wage,
+              ctaLabel: 'Awaiting Employer Verification...',
+              isLoading: false,
+              disabled: true,
+              icon: const Icon(Icons.hourglass_top_rounded, size: 16, color: Colors.white),
+              onCta: () {},
+            );
+          }
+
+          if (isThisWorker && isWorking) {
+            return StickyBottomBar(
+              label: 'STATUS: WORKING',
+              price: job.wage,
+              ctaLabel: 'Submit Completion',
+              isLoading: false,
+              disabled: false,
+              icon: const Icon(Icons.assignment_turned_in_outlined, size: 16, color: Colors.white),
+              onCta: () {
+                openCompletionProofBottomSheet(
+                  context, ref,
+                  jobId: job.id,
+                  workerId: resolvedReporterId,
+                  jobTitle: job.title,
+                  onSubmitted: () {
+                    ref.invalidate(jobDetailProvider(job.id));
+                    ref.invalidate(completionProofForJobProvider(job.id));
+                  },
+                );
+              },
+            );
+          }
+
+          if (isThisWorker && isArrived) {
+            return StickyBottomBar(
+              label: 'STATUS: ARRIVED',
+              price: job.wage,
+              ctaLabel: 'Start Job',
+              isLoading: false,
+              disabled: false,
+              icon: const Icon(Icons.play_circle_outline_rounded, size: 16, color: Colors.white),
+              onCta: () async {
+                await ref.read(jobServiceProvider).updateWorkerProgress(
+                  jobId: job.id, newStatus: 'working');
+                ref.invalidate(jobDetailProvider(job.id));
+              },
+            );
+          }
+
+          if (isThisWorker && isOnTheWay) {
+            return StickyBottomBar(
+              label: "STATUS: ON THE WAY",
+              price: job.wage,
+              ctaLabel: "I've Arrived",
+              isLoading: false,
+              disabled: false,
+              icon: const Icon(Icons.location_on_rounded, size: 16, color: Colors.white),
+              onCta: () async {
+                await ref.read(jobServiceProvider).updateWorkerProgress(
+                  jobId: job.id, newStatus: 'arrived');
+                ref.invalidate(jobDetailProvider(job.id));
+              },
+            );
+          }
+
+          if (isThisWorker && isAssigned) {
+            return StickyBottomBar(
+              label: 'STATUS: ASSIGNED',
+              price: job.wage,
+              ctaLabel: "I'm On My Way",
+              isLoading: false,
+              disabled: false,
+              icon: const Icon(Icons.directions_walk_rounded, size: 16, color: Colors.white),
+              onCta: () async {
+                await ref.read(jobServiceProvider).updateWorkerProgress(
+                  jobId: job.id, newStatus: 'on_the_way');
+                ref.invalidate(jobDetailProvider(job.id));
+              },
+            );
+          }
+
           return StickyBottomBar(
             label: 'DAILY RATE',
             price: job.wage,
-            ctaLabel: isAssigned
+            ctaLabel: (isAssigned || isInProgress)
                 ? 'Job Assigned (${job.workerName ?? "Worker"})'
                 : (hasApplied
                     ? 'Interest Expressed ✓'
@@ -747,8 +881,8 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                         ? 'Registering Interest...'
                         : 'Express Interest & Apply')),
             isLoading: _isApplying,
-            disabled: hasApplied || isAssigned,
-            icon: (hasApplied || isAssigned)
+            disabled: hasApplied || isAssigned || isInProgress,
+            icon: (hasApplied || isAssigned || isInProgress)
                 ? const Icon(Icons.check_circle_outline_rounded,
                     size: 16, color: Colors.white)
                 : const Icon(Icons.work_outline_rounded,
@@ -759,6 +893,511 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
         orElse: () => null,
       ),
     );
+  }
+
+  // ── Worker Timeline Card ─────────────────────────────────────────────────
+
+  Widget _buildWorkerTimeline(
+    BuildContext context,
+    WidgetRef ref,
+    Job job,
+    String workerId,
+  ) {
+    final status = job.status;
+    final steps = [
+      ('assigned', Icons.assignment_outlined, 'Assigned'),
+      ('on_the_way', Icons.directions_walk_rounded, 'On the Way'),
+      ('arrived', Icons.location_on_rounded, 'Arrived'),
+      ('working', Icons.construction_rounded, 'Working'),
+      ('proof_submitted', Icons.assignment_turned_in_outlined, 'Proof Submitted'),
+    ];
+    final statusOrder = ['assigned', 'on_the_way', 'arrived', 'working', 'proof_submitted', 'completed'];
+    final currentIndex = statusOrder.indexOf(status);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.brandSubtle, Color(0xFFF9F4F4)],
+        ),
+        borderRadius: AppRadii.card,
+        border: Border.all(color: AppColors.brand.withOpacity(0.2)),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.work_history_rounded, color: AppColors.brand, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                "TODAY'S JOB",
+                style: GoogleFonts.spaceMono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.brand,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.brand,
+                  borderRadius: AppRadii.pill,
+                ),
+                child: Text(
+                  status.toUpperCase().replaceAll('_', ' '),
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            job.title,
+            style: GoogleFonts.sora(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: AppColors.inkPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+
+          // Timeline steps
+          ...steps.asMap().entries.map((entry) {
+            final stepIndex = statusOrder.indexOf(entry.value.$1);
+            final isDone = stepIndex < currentIndex;
+            final isActive = entry.value.$1 == status;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 28,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: isDone
+                                ? AppColors.success
+                                : (isActive ? AppColors.brand : AppColors.border),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            isDone
+                                ? Icons.check_rounded
+                                : (isActive ? entry.value.$2 : entry.value.$2),
+                            color: isDone || isActive
+                                ? Colors.white
+                                : AppColors.inkMuted,
+                            size: 13,
+                          ),
+                        ),
+                        if (entry.key < steps.length - 1)
+                          Container(
+                            width: 2,
+                            height: 16,
+                            color: isDone ? AppColors.success : AppColors.border,
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    entry.value.$3,
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                      color: isDone
+                          ? AppColors.success
+                          : (isActive ? AppColors.inkPrimary : AppColors.inkMuted),
+                    ),
+                  ),
+                  if (isDone) ...[
+                    const SizedBox(width: 6),
+                    const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 14),
+                  ],
+                  if (isActive) ...[
+                    const SizedBox(width: 6),
+                    Text('← Current', style: GoogleFonts.spaceMono(fontSize: 9, color: AppColors.brand)),
+                  ],
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // ── Employer: Worker Progress View ───────────────────────────────────────
+
+  Widget _buildEmployerProgressView(Job job) {
+    final status = job.status;
+    final statusLabel = status.toUpperCase().replaceAll('_', ' ');
+    final workerName = job.workerName ?? 'Worker';
+
+    Color statusColor;
+    IconData statusIcon;
+    switch (status) {
+      case 'on_the_way':
+        statusColor = AppColors.warning;
+        statusIcon = Icons.directions_walk_rounded;
+        break;
+      case 'arrived':
+        statusColor = AppColors.brand;
+        statusIcon = Icons.location_on_rounded;
+        break;
+      case 'working':
+        statusColor = AppColors.brand;
+        statusIcon = Icons.construction_rounded;
+        break;
+      case 'proof_submitted':
+        statusColor = AppColors.success;
+        statusIcon = Icons.assignment_turned_in_outlined;
+        break;
+      default:
+        statusColor = AppColors.inkMuted;
+        statusIcon = Icons.help_outline_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadii.card,
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+        boxShadow: AppShadows.card,
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(statusIcon, color: statusColor, size: 22),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'WORKER STATUS',
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.inkMuted,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                Text(
+                  '$workerName — $statusLabel',
+                  style: GoogleFonts.sora(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.inkPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.12),
+              borderRadius: AppRadii.pill,
+              border: Border.all(color: statusColor.withOpacity(0.5)),
+            ),
+            child: Text(
+              'LIVE',
+              style: GoogleFonts.spaceMono(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: statusColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Employer: Completion Verification Card ───────────────────────────────
+
+  Widget _buildEmployerProofVerification(
+    BuildContext context,
+    WidgetRef ref,
+    Job job,
+    String employerId,
+    List<Application> applications,
+    CompletionProof? proof,
+  ) {
+    final workerName = job.workerName ??
+        applications.firstWhere((a) => a.status == 'assigned',
+            orElse: () => Application(
+                id: '', jobId: '', workerId: '', workerName: 'Worker',
+                workerPhone: '', status: '', createdAt: DateTime.now())).workerName;
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF0FDF4), Color(0xFFF9FFFE)],
+        ),
+        borderRadius: AppRadii.card,
+        border: Border.all(color: AppColors.success.withOpacity(0.4)),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              const Icon(Icons.verified_outlined, color: AppColors.success, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'VERIFY COMPLETION',
+                style: GoogleFonts.spaceMono(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.success,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '$workerName has submitted proof of completed work. Review and verify to release payment.',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: AppColors.inkMuted,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+
+          // Proof photos
+          if (proof != null && proof.proofImageUrls.isNotEmpty) ...[
+            Text(
+              'PROOF PHOTOS (${proof.proofImageUrls.length})',
+              style: GoogleFonts.spaceMono(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.inkMuted,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 90,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: proof.proofImageUrls.map((url) {
+                  final isDemo = url.startsWith('demo://');
+                  return Container(
+                    width: 90,
+                    height: 90,
+                    margin: const EdgeInsets.only(right: AppSpacing.sm),
+                    decoration: BoxDecoration(
+                      borderRadius: AppRadii.control,
+                      border: Border.all(color: AppColors.success.withOpacity(0.4)),
+                      color: AppColors.surfaceRaised,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: isDemo
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.image_outlined, color: AppColors.inkMuted, size: 28),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'DEMO\nPHOTO',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.spaceMono(fontSize: 7, color: AppColors.inkMuted),
+                                ),
+                              ],
+                            ),
+                          )
+                        : Image.network(
+                            url,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => const Icon(
+                              Icons.broken_image_outlined,
+                              color: AppColors.inkMuted,
+                              size: 28,
+                            ),
+                          ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceRaised,
+                borderRadius: AppRadii.control,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.hourglass_top_rounded, color: AppColors.inkMuted, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Worker submitted completion — photos loading...',
+                    style: GoogleFonts.inter(fontSize: 12, color: AppColors.inkMuted),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          // Submitted at
+          if (proof != null) ...[
+            Row(
+              children: [
+                const Icon(Icons.schedule_rounded, size: 13, color: AppColors.inkMuted),
+                const SizedBox(width: 4),
+                Text(
+                  'Submitted ${_formatTime(proof.submittedAt)}',
+                  style: GoogleFonts.spaceMono(fontSize: 10, color: AppColors.inkMuted),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+
+          const Divider(color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+
+          // Action buttons
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+                    elevation: 0,
+                  ),
+                  onPressed: () async {
+                    // 1. Verify the proof record
+                    if (proof != null) {
+                      await ref
+                          .read(completionProofServiceProvider)
+                          .verifyProof(jobId: job.id, verifiedBy: employerId);
+                    }
+                    // 2. Mark job as completed → triggers existing demo payment
+                    final success = await ref
+                        .read(jobServiceProvider)
+                        .verifyCompletion(jobId: job.id);
+                    if (success) {
+                      ref.invalidate(jobDetailProvider(job.id));
+                      ref.invalidate(jobsByCategoryProvider);
+                      ref.invalidate(filteredJobsProvider);
+                      ref.invalidate(completionProofForJobProvider(job.id));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: AppColors.success,
+                            content: Text(
+                              '✓ Job verified! Payment processing...',
+                              style: GoogleFonts.inter(fontSize: 13, color: Colors.white),
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  icon: const Icon(Icons.check_circle_rounded, size: 17),
+                  label: Text(
+                    'ACCEPT & PAY',
+                    style: GoogleFonts.spaceMono(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                flex: 2,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.danger),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+                    backgroundColor: AppColors.dangerSubtle,
+                  ),
+                  onPressed: () {
+                    final assignedApp = applications.firstWhere(
+                      (a) => a.status == 'assigned',
+                      orElse: () => Application(
+                          id: '', jobId: '', workerId: '', workerName: 'Worker',
+                          workerPhone: '', status: '', createdAt: DateTime.now()),
+                    );
+                    openReportIssueBottomSheet(
+                      context,
+                      ref,
+                      jobId: job.id,
+                      reporterId: employerId,
+                      reporterRole: 'employer',
+                      jobTitle: job.title,
+                      otherPartyId: assignedApp.workerId.isNotEmpty ? assignedApp.workerId : null,
+                    );
+                  },
+                  icon: const Icon(Icons.flag_outlined, size: 15, color: AppColors.danger),
+                  label: Text(
+                    'DISPUTE',
+                    style: GoogleFonts.spaceMono(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
   Widget _buildDetailCategoryFallback(String category) {

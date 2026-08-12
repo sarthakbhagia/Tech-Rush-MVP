@@ -279,6 +279,9 @@ class JobService {
     }
   }
 
+  /// Updates the job status. Used internally for any status transition.
+  /// For worker check-ins, prefer [updateWorkerProgress].
+  /// For employer completion, prefer [verifyCompletion].
   Future<bool> updateJobStatus({
     required String jobId,
     required String status,
@@ -327,6 +330,33 @@ class JobService {
       }
       return false;
     }
+  }
+
+  /// Worker-only: advances job through check-in statuses.
+  /// Allowed transitions: assigned→on_the_way→arrived→working→proof_submitted
+  /// Security: the caller (widget layer) must verify the worker is the assigned worker.
+  /// The DB RLS further enforces this on real UUIDs.
+  Future<bool> updateWorkerProgress({
+    required String jobId,
+    required String newStatus,
+  }) async {
+    const allowedStatuses = {
+      'on_the_way',
+      'arrived',
+      'working',
+      'proof_submitted',
+    };
+    if (!allowedStatuses.contains(newStatus)) {
+      if (kDebugMode) print('⚠️ [JobService] Invalid worker progress status: $newStatus');
+      return false;
+    }
+    return updateJobStatus(jobId: jobId, status: newStatus);
+  }
+
+  /// Employer-only: verifies completion and triggers the demo payment workflow.
+  /// Should only be called after proof_submitted status and employer review.
+  Future<bool> verifyCompletion({required String jobId}) async {
+    return updateJobStatus(jobId: jobId, status: 'completed');
   }
 
 
