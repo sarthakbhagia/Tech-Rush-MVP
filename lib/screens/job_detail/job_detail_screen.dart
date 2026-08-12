@@ -203,6 +203,10 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ref.invalidate(jobApplicationsProvider(job.id));
       ref.invalidate(jobDetailProvider(job.id));
       ref.invalidate(jobsByCategoryProvider);
+      ref.invalidate(filteredJobsProvider);
+      // Explicitly evict match cache — the UI guard + provider guard also
+      // prevent rendering, but this ensures stale data is never held in memory.
+      ref.invalidate(workerMatchesProvider(job));
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -485,7 +489,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                   _buildPaymentStepper(payout, job.wage),
                 ],
 
-                if (isJobOwner) ...[
+                // ── Best Matches: only visible when job is genuinely open ─
+                // Hidden once ANY worker has been assigned or the job is no
+                // longer accepting workers. This is the UI guard; the
+                // workerMatchesProvider also returns [] for non-open jobs.
+                if (isJobOwner && !isAssigned && !isInProgress && !isCompleted) ...[
                   RecommendedWorkersSection(job: job),
                   const SizedBox(height: AppSpacing.lg),
                 ],
