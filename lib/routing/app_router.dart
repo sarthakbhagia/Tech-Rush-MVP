@@ -11,7 +11,9 @@ import '../screens/profile/profile_screen.dart';
 import '../screens/search/search_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/demo_widgets_screen.dart';
+import '../screens/profile/payout_history_screen.dart';
 import '../widgets/app_bottom_nav.dart';
+
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return appRouter;
@@ -69,6 +71,13 @@ final GoRouter appRouter = GoRouter(
         return const DemoWidgetsScreen();
       },
     ),
+    GoRoute(
+      path: '/payout-history',
+      builder: (BuildContext context, GoRouterState state) {
+        return const PayoutHistoryScreen();
+      },
+    ),
+
 
     // Persistent Bottom Tab Navigation ShellRoute
     ShellRoute(

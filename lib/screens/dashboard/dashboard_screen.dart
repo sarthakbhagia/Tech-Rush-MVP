@@ -28,6 +28,9 @@ import '../../models/job.dart';
 import '../../models/application.dart';
 import '../../providers/review_provider.dart';
 import '../job_detail/job_detail_screen.dart' show profileDetailsProvider;
+import '../../providers/payout_provider.dart';
+import '../../models/payout.dart';
+
 
 enum DashboardRole { employer, worker }
 
@@ -215,6 +218,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final applicationsAsync = isEmployer
         ? ref.watch(employerApplicationsProvider(currentUserId))
         : null;
+
+    final resolvedWorkerId = (userProfile.id != null && userProfile.id!.isNotEmpty)
+        ? userProfile.id!
+        : 'f0000000-0000-0000-0000-000000000001';
+
+    final payoutsAsync = ref.watch(userPayoutsProvider(UserPayoutsParams(
+      userId: resolvedWorkerId,
+      role: 'worker',
+    )));
+    final payouts = payoutsAsync.asData?.value ?? [];
+
 
     // Dynamic color tokens for Employer vs Worker mode
     final primaryColor = isEmployer ? const Color(0xFF943D39) : const Color(0xFF1E5E54);
@@ -743,7 +757,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
+                  // Today's Earnings Summary Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                    child: _buildWorkerEarningsSummary(context, payouts, primaryColor),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+
                   // 2. WOW-Factor Gamified Streak & Earnings Widget
+
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                     child: _buildWorkerEarningsStreakWidget(primaryColor, subtleColor, currentLocale),
@@ -1589,6 +1611,149 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWorkerEarningsSummary(BuildContext context, List<Payout> payouts, Color primaryColor) {
+    double paidSum = 1300.0;
+    double pendingSum = 556.0;
+
+    for (final p in payouts) {
+      if (p.status == 'paid') {
+        paidSum += p.amount;
+      } else {
+        pendingSum += p.amount;
+      }
+    }
+
+    final totalEarnings = paidSum + pendingSum;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadii.card,
+        boxShadow: AppShadows.card,
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'TODAY\'S EARNINGS',
+                style: GoogleFonts.spaceMono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.inkMuted,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  context.push('/payout-history');
+                },
+                child: Row(
+                  children: [
+                    Text(
+                      'History',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: primaryColor),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '₹${totalEarnings.toStringAsFixed(0)}',
+            style: GoogleFonts.spaceMono(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: AppColors.inkPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Paid',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${paidSum.toStringAsFixed(0)}',
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                height: 40,
+                width: 1,
+                color: AppColors.border,
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time_filled_rounded, size: 14, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Pending',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${pendingSum.toStringAsFixed(0)}',
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

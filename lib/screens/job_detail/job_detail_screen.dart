@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -25,6 +27,9 @@ import '../../widgets/report_issue_bottom_sheet.dart';
 import '../../models/job_dispute.dart';
 import '../../services/notification_service.dart';
 import '../../providers/worker_match_provider.dart';
+import '../../providers/payout_provider.dart';
+import '../../models/payout.dart';
+
 
 /// Provider that fetches photo_url + name for any user profile by ID.
 final profileDetailsProvider =
@@ -61,6 +66,24 @@ class JobDetailScreen extends ConsumerStatefulWidget {
 
 class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
   bool _isApplying = false;
+  Timer? _payoutTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _payoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        ref.invalidate(jobPayoutProvider(widget.jobId));
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _payoutTimer?.cancel();
+    super.dispose();
+  }
+
 
   Future<void> _handleExpressInterest(Job job) async {
     final user = ref.read(userProfileProvider);
@@ -291,8 +314,14 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
           final isJobOwner = job.employerId != null && resolvedReporterId == job.employerId;
           final isAssignedWorker = applications.any((a) => a.status == 'assigned' && a.workerId == resolvedReporterId);
           final viewerIsParticipant = isJobOwner || isAssignedWorker;
+          final payoutAsync = isCompleted
+              ? ref.watch(jobPayoutProvider(job.id))
+              : const AsyncValue<Payout?>.data(null);
+          final payout = payoutAsync.asData?.value;
 
           return SingleChildScrollView(
+
+
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -412,6 +441,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 // Stepper
                 JobStatusStepper(currentStatus: currentStep),
                 const SizedBox(height: AppSpacing.lg),
+
+                if (isCompleted && viewerIsParticipant) ...[
+                  _buildPaymentStepper(payout, job.wage),
+                ],
+
 
                 if (isJobOwner) ...[
                   RecommendedWorkersSection(job: job),
@@ -1069,7 +1103,125 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ),
     );
   }
+
+  Widget _buildPaymentStepper(Payout? payout, double wage) {
+    final status = payout?.status ?? 'payment_pending';
+    
+    final stepCompleted = true; // Job completed
+    final stepVerified = true;  // Completion verified
+    final stepProcessing = status == 'payout_processing' || status == 'paid';
+    final stepPaid = status == 'paid';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.brandSubtle.withOpacity(0.3),
+        borderRadius: AppRadii.card,
+        border: Border.all(color: AppColors.brand.withOpacity(0.3)),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'PAYMENT',
+                style: GoogleFonts.spaceMono(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.brand,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              Text(
+                '₹${wage.toStringAsFixed(0)}',
+                style: GoogleFonts.spaceMono(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.brand,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: AppSpacing.sm),
+          
+          _buildPaymentStepRow('Job completed', stepCompleted),
+          const SizedBox(height: AppSpacing.xs),
+          
+          _buildPaymentStepRow('Completion verified', stepVerified),
+          const SizedBox(height: AppSpacing.xs),
+          
+          _buildPaymentStepRow('Payment processing', stepProcessing),
+          const SizedBox(height: AppSpacing.xs),
+          
+          _buildPaymentStepRow('Payout completed', stepPaid),
+          
+          if (payout != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Divider(color: AppColors.border),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Transaction ID:',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    color: AppColors.inkMuted,
+                  ),
+                ),
+                SelectableText(
+                  payout.transactionReference,
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.inkPrimary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              '✓ Same-day guaranteed UPI payout',
+              style: GoogleFonts.inter(
+                fontSize: 10,
+                fontStyle: FontStyle.italic,
+                color: AppColors.success,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentStepRow(String label, bool isDone) {
+    return Row(
+      children: [
+        Icon(
+          isDone ? Icons.check_circle_rounded : Icons.radio_button_off_rounded,
+          size: 16,
+          color: isDone ? AppColors.success : AppColors.inkMuted,
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          label,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: isDone ? FontWeight.bold : FontWeight.normal,
+            color: isDone ? AppColors.inkPrimary : AppColors.inkMuted,
+          ),
+        ),
+      ],
+    );
+  }
 }
+
 
 /// Loads and displays a worker's avatar from Supabase profiles.
 /// Falls back to an initials circle if photo_url is absent.
@@ -1774,7 +1926,9 @@ class _RecommendedWorkersSectionState extends State<RecommendedWorkersSection> {
   }
 }
 
+
 class _MatchedBadge extends StatelessWidget {
+
   final String label;
   final bool matched;
   const _MatchedBadge({required this.label, required this.matched});

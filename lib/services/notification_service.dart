@@ -15,6 +15,8 @@ class NotificationService {
     r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
   );
 
+  static final List<NotificationItem> _localNotifications = [];
+
   // ── Write ────────────────────────────────────────────────────────────────
 
   /// Inserts a notification row for [userId].
@@ -26,9 +28,23 @@ class NotificationService {
     required String body,
     String? relatedJobId,
   }) async {
+    final now = DateTime.now();
+    final localItem = NotificationItem(
+      id: 'notif_${now.millisecondsSinceEpoch}',
+      title: title,
+      body: body,
+      createdAt: now,
+      type: NotificationTypeX.fromDbValue(type),
+      isRead: false,
+      relatedJobId: relatedJobId,
+    );
+
+    // Save locally
+    _localNotifications.add(localItem);
+
     if (!_uuidRegExp.hasMatch(userId)) {
       if (kDebugMode) {
-        print('⚠️ [NotificationService] Skipping insert — userId is not a UUID: $userId');
+        print('⚠️ [NotificationService] Skipping DB insert — userId is not a UUID: $userId');
       }
       return;
     }
@@ -58,6 +74,12 @@ class NotificationService {
 
   /// Marks a single notification as read.
   Future<void> markAsRead(String notificationId) async {
+    // Mark local first
+    final index = _localNotifications.indexWhere((n) => n.id == notificationId);
+    if (index != -1) {
+      _localNotifications[index] = _localNotifications[index].copyWith(isRead: true);
+    }
+
     if (!_uuidRegExp.hasMatch(notificationId)) return;
     try {
       await _client
@@ -73,6 +95,11 @@ class NotificationService {
 
   /// Marks all notifications for [userId] as read.
   Future<void> markAllAsRead(String userId) async {
+    // Mark local first
+    for (int i = 0; i < _localNotifications.length; i++) {
+      _localNotifications[i] = _localNotifications[i].copyWith(isRead: true);
+    }
+
     if (!_uuidRegExp.hasMatch(userId)) return;
     try {
       await _client
@@ -91,7 +118,13 @@ class NotificationService {
 
   /// Fetches all notifications for [userId], newest first.
   Future<List<NotificationItem>> fetchNotifications(String userId) async {
-    if (!_uuidRegExp.hasMatch(userId)) return [];
+    final List<NotificationItem> merged = List.from(_localNotifications);
+
+    if (!_uuidRegExp.hasMatch(userId)) {
+      merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return merged;
+    }
+
     try {
       final res = await _client
           .from('notifications')
@@ -101,12 +134,23 @@ class NotificationService {
           .limit(50);
 
       final List rows = res as List;
-      return rows.map((json) => NotificationItem.fromJson(json)).toList();
+      final remoteList = rows.map((json) => NotificationItem.fromJson(json)).toList();
+
+      // Merge remote list
+      for (final item in remoteList) {
+        if (!merged.any((n) => n.id == item.id)) {
+          merged.add(item);
+        }
+      }
+
+      merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return merged;
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ [NotificationService] fetchNotifications failed: $e');
       }
-      return [];
+      merged.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return merged;
     }
   }
 

@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/job.dart';
 import 'supabase_service.dart';
 import 'notification_service.dart';
+import 'payout_service.dart';
+
 
 class JobService {
   final SupabaseClient _client = SupabaseService().client;
@@ -206,6 +208,77 @@ class JobService {
 
   static final Map<String, Job> _localJobsOverrides = {};
 
+  Future<void> _triggerPayoutWorkflow(String jobId, Job? job) async {
+    try {
+      final resolvedJob = job ?? await fetchJobById(jobId);
+      if (resolvedJob == null) return;
+
+      final employerId = resolvedJob.employerId ?? 'e0000000-0000-0000-0000-000000000001';
+      String? workerId;
+
+      // Find the worker ID from supabase applications if UUIDs match
+      if (_uuidRegExp.hasMatch(jobId)) {
+        try {
+          final appRes = await _client
+              .from('applications')
+              .select('worker_id')
+              .eq('job_id', jobId)
+              .eq('status', 'assigned')
+              .maybeSingle();
+          workerId = appRes?['worker_id']?.toString();
+        } catch (_) {}
+      }
+
+      // Offline/fallback worker resolution
+      workerId ??= 'f0000000-0000-0000-0000-000000000001';
+
+      final payoutService = PayoutService();
+      final payout = await payoutService.createPayout(
+        jobId: jobId,
+        workerId: workerId,
+        employerId: employerId,
+        amount: resolvedJob.wage,
+      );
+
+      if (payout != null) {
+        // Start simulation flow
+        Future.delayed(const Duration(seconds: 2), () async {
+          await payoutService.updatePayoutStatus(
+            payoutId: payout.id,
+            status: 'payout_processing',
+          );
+          final notif = NotificationService();
+          await notif.insertNotification(
+            userId: workerId!,
+            type: 'payment',
+            title: 'Payout Processing ⏳',
+            body: 'Same-day payout initiated for job: "${resolvedJob.title}".',
+            relatedJobId: jobId,
+          );
+        });
+
+        Future.delayed(const Duration(seconds: 5), () async {
+          await payoutService.updatePayoutStatus(
+            payoutId: payout.id,
+            status: 'paid',
+          );
+          final notif = NotificationService();
+          await notif.insertNotification(
+            userId: workerId!,
+            type: 'payment',
+            title: 'Payout Completed ✅',
+            body: 'Same-day payout of ₹${resolvedJob.wage.toStringAsFixed(0)} completed successfully. Ref: ${payout.transactionReference}.',
+            relatedJobId: jobId,
+          );
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ [JobService] Error triggering payout workflow: $e');
+      }
+    }
+  }
+
   Future<bool> updateJobStatus({
     required String jobId,
     required String status,
@@ -220,6 +293,10 @@ class JobService {
         workerName: workerName ?? existingJob.workerName,
       );
       _localJobsOverrides[jobId] = updated;
+    }
+
+    if (status == 'completed') {
+      _triggerPayoutWorkflow(jobId, existingJob);
     }
 
     if (!_uuidRegExp.hasMatch(jobId)) {
@@ -251,6 +328,7 @@ class JobService {
       return false;
     }
   }
+
 
   /// Fetches the job context and fires two notifications for job completion.
   /// Runs asynchronously and swallows errors.
