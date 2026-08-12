@@ -23,6 +23,29 @@ import '../../providers/review_provider.dart';
 import '../../providers/job_dispute_provider.dart';
 import '../../widgets/report_issue_bottom_sheet.dart';
 import '../../models/job_dispute.dart';
+import '../../services/notification_service.dart';
+import '../../providers/worker_match_provider.dart';
+
+/// Provider that fetches photo_url + name for any user profile by ID.
+final profileDetailsProvider =
+    FutureProvider.family<Map<String, dynamic>, String>((ref, userId) async {
+  try {
+    if (userId.isEmpty) return {};
+    final client = SupabaseService().client;
+    final res = await client
+        .from('profiles')
+        .select('full_name, photo_url')
+        .eq('id', userId)
+        .maybeSingle();
+    if (res == null) return {};
+    return {
+      'name': res['full_name']?.toString() ?? '',
+      'photo_url': res['photo_url']?.toString(),
+    };
+  } catch (_) {
+    return {};
+  }
+});
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -389,6 +412,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 // Stepper
                 JobStatusStepper(currentStatus: currentStep),
                 const SizedBox(height: AppSpacing.lg),
+
+                if (isJobOwner) ...[
+                  RecommendedWorkersSection(job: job),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
 
                 if (isCompleted && viewerIsParticipant) ...[
                   _buildFeedbackAndDisputeSection(context, ref, job, resolvedReporterId, user, liveUid, applications),
@@ -1105,26 +1133,8 @@ class _WorkerAvatar extends ConsumerWidget {
   }
 }
 
-/// Provider that fetches photo_url + name for any user profile by ID.
-final profileDetailsProvider =
-    FutureProvider.family<Map<String, dynamic>, String>((ref, userId) async {
-  try {
-    if (userId.isEmpty) return {};
-    final client = SupabaseService().client;
-    final res = await client
-        .from('profiles')
-        .select('full_name, photo_url')
-        .eq('id', userId)
-        .maybeSingle();
-    if (res == null) return {};
-    return {
-      'name': res['full_name']?.toString() ?? '',
-      'photo_url': res['photo_url']?.toString(),
-    };
-  } catch (_) {
-    return {};
-  }
-});
+
+
 
 class _ApplicantRow extends ConsumerWidget {
   final Application app;
@@ -1428,3 +1438,378 @@ class _ApplicantRow extends ConsumerWidget {
     );
   }
 }
+
+class RecommendedWorkersSection extends StatefulWidget {
+  final Job job;
+  const RecommendedWorkersSection({super.key, required this.job});
+
+  @override
+  State<RecommendedWorkersSection> createState() => _RecommendedWorkersSectionState();
+}
+
+class _RecommendedWorkersSectionState extends State<RecommendedWorkersSection> {
+  final Set<String> _invitedWorkerIds = {};
+  final Set<String> _expandedWorkerIds = {};
+  bool _isInviting = false;
+
+  Future<void> _handleInvite(UserProfile worker) async {
+    if (worker.id == null) return;
+    setState(() {
+      _isInviting = true;
+    });
+
+    try {
+      final notif = NotificationService();
+      await notif.insertNotification(
+        userId: worker.id!,
+        type: 'job_invite',
+        title: 'Job Invitation ✉️',
+        body: 'You have been invited to apply for "${widget.job.title}" under category "${widget.job.category}".',
+        relatedJobId: widget.job.id,
+      );
+
+      setState(() {
+        _invitedWorkerIds.add(worker.id!);
+        _isInviting = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.success,
+            content: Text(
+              'Invitation sent to ${worker.name}!',
+              style: GoogleFonts.inter(color: Colors.white),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _isInviting = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.danger,
+            content: Text('Failed to send invitation: $e'),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, ref, child) {
+        final matchesAsync = ref.watch(workerMatchesProvider(widget.job));
+
+        return matchesAsync.when(
+          data: (matches) {
+            if (matches.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            final topMatches = matches.take(3).toList();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'BEST MATCHES',
+                  style: GoogleFonts.spaceMono(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.brand,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Column(
+                  children: topMatches.map((match) {
+                    final isInvited = _invitedWorkerIds.contains(match.worker.id);
+                    final isExpanded = _expandedWorkerIds.contains(match.worker.id);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                      padding: const EdgeInsets.all(AppSpacing.md),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: AppRadii.card,
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: AppShadows.card,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              _WorkerAvatar(workerId: match.worker.id ?? ''),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      match.worker.name,
+                                      style: GoogleFonts.sora(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.inkPrimary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Row(
+                                      children: [
+                                        Text(
+                                          'Match Score: ${(match.score * 100).toStringAsFixed(0)}%',
+                                          style: GoogleFonts.spaceMono(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.brand,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          '${(match.estimatedDistanceKm ?? 0.0).toStringAsFixed(1)} km away',
+                                          style: GoogleFonts.inter(
+                                            fontSize: 10,
+                                            color: AppColors.inkMuted,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              _MatchedBadge(label: widget.job.category, matched: match.explanation.componentScores['skills'] != 0.0),
+                              _MatchedBadge(label: 'Available today', matched: match.explanation.componentScores['availability'] != 0.0),
+                              _MatchedBadge(label: 'Wage compatible', matched: match.explanation.componentScores['wage'] != 0.0),
+                            ],
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (isExpanded) {
+                                  _expandedWorkerIds.remove(match.worker.id);
+                                } else {
+                                  _expandedWorkerIds.add(match.worker.id!);
+                                }
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    isExpanded ? 'Hide Match Details' : 'Show Match Details',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.brand,
+                                    ),
+                                  ),
+                                  Icon(
+                                    isExpanded ? Icons.expand_less : Icons.expand_more,
+                                    size: 16,
+                                    color: AppColors.brand,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (isExpanded) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: AppColors.surfaceRaised,
+                                borderRadius: AppRadii.control,
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'SCORE BREAKDOWN',
+                                    style: GoogleFonts.spaceMono(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.inkMuted,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  ...match.explanation.positives.map((pos) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 2),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.check_rounded, color: Colors.green, size: 12),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              pos,
+                                              style: GoogleFonts.inter(fontSize: 11, color: AppColors.inkPrimary),
+                                            ),
+                                          ],
+                                        ),
+                                      )),
+                                  ...match.explanation.negatives.map((neg) => Padding(
+                                        padding: const EdgeInsets.only(bottom: 2),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.close_rounded, color: Colors.red, size: 12),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              neg,
+                                              style: GoogleFonts.inter(fontSize: 11, color: AppColors.inkMuted),
+                                            ),
+                                          ],
+                                        ),
+                                      )),
+                                ],
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: AppSpacing.sm),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              OutlinedButton(
+                                onPressed: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    isScrollControlled: true,
+                                    backgroundColor: Colors.transparent,
+                                    builder: (context) => Container(
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.canvas,
+                                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                                      ),
+                                      padding: const EdgeInsets.all(AppSpacing.lg),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Worker Profile Details',
+                                            style: GoogleFonts.sora(fontSize: 16, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: AppSpacing.md),
+                                          ProviderCard(
+                                            name: match.worker.name,
+                                            photoUrl: match.worker.photoUrl,
+                                            primarySkill: match.worker.skills.isNotEmpty ? match.worker.skills.first : 'Worker',
+                                            skills: match.worker.skills,
+                                            dailyRate: match.worker.dailyRate,
+                                            rating: 4.8,
+                                            jobsCompleted: 10,
+                                            phone: match.worker.phone,
+                                            isVerified: true,
+                                            rateeId: match.worker.id,
+                                          ),
+                                          const SizedBox(height: AppSpacing.md),
+                                          ElevatedButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: AppColors.brand,
+                                              minimumSize: const Size(double.infinity, 44),
+                                            ),
+                                            child: Text('Close', style: GoogleFonts.spaceMono(color: Colors.white)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  side: const BorderSide(color: AppColors.border),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                ),
+                                child: Text(
+                                  'VIEW PROFILE',
+                                  style: GoogleFonts.spaceMono(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.inkPrimary),
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.sm),
+                              ElevatedButton(
+                                onPressed: (isInvited || _isInviting) ? null : () => _handleInvite(match.worker),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isInvited ? Colors.grey : AppColors.brand,
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                ),
+                                child: Text(
+                                  isInvited ? 'INVITED' : 'INVITE TO JOB',
+                                  style: GoogleFonts.spaceMono(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: AppSpacing.xl),
+              ],
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: CircularProgressIndicator(color: AppColors.brand),
+            ),
+          ),
+          error: (err, stack) => const SizedBox.shrink(),
+        );
+      },
+    );
+  }
+}
+
+class _MatchedBadge extends StatelessWidget {
+  final String label;
+  final bool matched;
+  const _MatchedBadge({required this.label, required this.matched});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: matched ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+        borderRadius: AppRadii.control,
+        border: Border.all(
+          color: matched ? const Color(0xFFA7F3D0) : const Color(0xFFFCA5A5),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            matched ? Icons.check_rounded : Icons.close_rounded,
+            size: 11,
+            color: matched ? const Color(0xFF059669) : const Color(0xFFDC2626),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: matched ? const Color(0xFF047857) : const Color(0xFFB91C1C),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
