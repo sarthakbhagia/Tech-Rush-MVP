@@ -20,6 +20,9 @@ import '../../widgets/thumbs_rating_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/review_provider.dart';
+import '../../providers/job_dispute_provider.dart';
+import '../../widgets/report_issue_bottom_sheet.dart';
+import '../../models/job_dispute.dart';
 
 class JobDetailScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -259,6 +262,12 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
               ? ref.watch(profileDetailsProvider(job.employerId!))
               : null;
           final employerPhotoUrl = employerProfileAsync?.valueOrNull?['photo_url'] as String?;
+          final resolvedReporterId = (user.isLoggedIn && user.id != null && user.id!.isNotEmpty)
+              ? user.id!
+              : (liveUid ?? activeUserId);
+          final isJobOwner = job.employerId != null && resolvedReporterId == job.employerId;
+          final isAssignedWorker = applications.any((a) => a.status == 'assigned' && a.workerId == resolvedReporterId);
+          final viewerIsParticipant = isJobOwner || isAssignedWorker;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(AppSpacing.lg),
@@ -381,6 +390,11 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                 JobStatusStepper(currentStatus: currentStep),
                 const SizedBox(height: AppSpacing.lg),
 
+                if (isCompleted && viewerIsParticipant) ...[
+                  _buildFeedbackAndDisputeSection(context, ref, job, resolvedReporterId, user, liveUid, applications),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
+
                 // Description & Requirements
                 Container(
                   padding: const EdgeInsets.all(AppSpacing.lg),
@@ -499,7 +513,9 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                               context,
                               ref,
                               jobId: job.id,
-                              evaluatorId: liveUid ?? user.id ?? '',
+                              evaluatorId: (user.isLoggedIn && user.id != null && user.id!.isNotEmpty)
+                                  ? user.id!
+                                  : (liveUid ?? activeUserId),
                               targetId: app.workerId,
                               targetName: app.workerName,
                               raterRole: 'employer',
@@ -513,12 +529,32 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
                             context,
                             ref,
                             jobId: job.id,
-                            evaluatorId: liveUid ?? user.id ?? '',
+                            evaluatorId: (user.isLoggedIn && user.id != null && user.id!.isNotEmpty)
+                                  ? user.id!
+                                  : (liveUid ?? activeUserId),
                             targetId: job.employerId ?? '',
                             targetName: job.employerName,
                             raterRole: 'worker',
                             employerId: job.employerId ?? '',
                             workerId: app.workerId,
+                          );
+                        },
+                        onReportIssue: () {
+                          final reporterId = (user.isLoggedIn && user.id != null && user.id!.isNotEmpty)
+                              ? user.id!
+                              : (liveUid ?? activeUserId);
+                          final owner = job.employerId != null && reporterId == job.employerId;
+                          final reporterRole = owner ? 'employer' : 'worker';
+                          final otherPartyId = owner ? app.workerId : job.employerId;
+                          if (reporterId.isEmpty) return;
+                          openReportIssueBottomSheet(
+                            context,
+                            ref,
+                            jobId: job.id,
+                            reporterId: reporterId,
+                            reporterRole: reporterRole,
+                            jobTitle: job.title,
+                            otherPartyId: otherPartyId,
                           );
                         },
                       );
@@ -720,6 +756,291 @@ class _JobDetailScreenState extends ConsumerState<JobDetailScreen> {
       ),
     );
   }
+
+  Widget _buildFeedbackAndDisputeSection(
+    BuildContext context,
+    WidgetRef ref,
+    Job job,
+    String reporterId,
+    UserProfile user,
+    String? liveUid,
+    List<Application> applications,
+  ) {
+    final isJobOwner = job.employerId != null && reporterId == job.employerId;
+    final hasAssigned = applications.any((a) => a.status == 'assigned');
+    final assignedApp = hasAssigned
+        ? applications.firstWhere((a) => a.status == 'assigned')
+        : null;
+    final otherPartyId = isJobOwner ? (assignedApp?.workerId ?? '') : (job.employerId ?? '');
+    final otherPartyName = isJobOwner ? (assignedApp?.workerName ?? 'Worker') : (job.employerName);
+
+    final hasRatedAsync = ref.watch(hasRatedProvider((jobId: job.id, raterId: reporterId)));
+    final hasRated = hasRatedAsync.valueOrNull ?? false;
+
+    final disputesAsync = ref.watch(jobDisputesProvider(job.id));
+    final disputes = disputesAsync.valueOrNull ?? [];
+
+    JobDispute? myDispute;
+    for (final d in disputes) {
+      if (d.reporterId == reporterId) {
+        myDispute = d;
+        break;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: AppRadii.card,
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.assignment_turned_in_outlined,
+                color: AppColors.brand,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'JOB RESOLUTION & FEEDBACK',
+                style: GoogleFonts.spaceMono(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.brand,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Happy Path: Ratings
+          Text(
+            'Happy Path: Rate Experience',
+            style: GoogleFonts.sora(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.inkPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          if (hasRated)
+            Row(
+              children: [
+                const Icon(Icons.check_circle_outline, color: AppColors.success, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'You have submitted a rating for this job.',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.success,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            Text(
+              'Share your feedback. Rating helps keep the community safe and reliable.',
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.inkMuted),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.brand),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () {
+                  openThumbsRatingBottomSheet(
+                    context,
+                    ref,
+                    jobId: job.id,
+                    evaluatorId: reporterId,
+                    targetId: otherPartyId.isNotEmpty ? otherPartyId : (job.employerId ?? ''),
+                    targetName: otherPartyName.isNotEmpty ? otherPartyName : 'User',
+                    raterRole: isJobOwner ? 'employer' : 'worker',
+                    employerId: job.employerId ?? '',
+                    workerId: isJobOwner ? (otherPartyId.isNotEmpty ? otherPartyId : '') : reporterId,
+                  );
+                },
+                icon: const Icon(Icons.thumb_up_alt_outlined, size: 16, color: AppColors.brand),
+                label: Text(
+                  isJobOwner ? 'Rate Worker' : 'Rate Employer',
+                  style: GoogleFonts.spaceMono(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.brand,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: AppSpacing.lg),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: AppSpacing.sm),
+
+          // Unhappy Path: Disputes/Complaints
+          Text(
+            'Unhappy Path: Report an Issue / Dispute',
+            style: GoogleFonts.sora(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: AppColors.inkPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // List any existing disputes
+          if (disputes.isNotEmpty) ...[
+            ...disputes.map((dispute) {
+              final isMyDispute = dispute.reporterId == reporterId;
+              final statusLabel = dispute.status == 'resolved' ? 'RESOLVED' : 'UNDER REVIEW';
+              final statusColor = dispute.status == 'resolved' ? AppColors.success : AppColors.warning;
+              final statusBgColor = dispute.status == 'resolved' ? AppColors.successSubtle : AppColors.warningSubtle;
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8, top: 4),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isMyDispute ? AppColors.dangerSubtle : AppColors.surfaceRaised,
+                  borderRadius: AppRadii.control,
+                  border: Border.all(
+                    color: isMyDispute ? AppColors.danger.withOpacity(0.2) : AppColors.border,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isMyDispute ? 'Dispute Filed by You' : (dispute.reporterRole == 'employer' ? 'Dispute Filed by Employer' : 'Dispute Filed by Worker'),
+                          style: GoogleFonts.spaceMono(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.inkPrimary,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: statusBgColor,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: statusColor),
+                          ),
+                          child: Text(
+                            statusLabel,
+                            style: GoogleFonts.spaceMono(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: statusColor,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Category: ${dispute.category}',
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.inkMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      dispute.description,
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        color: AppColors.inkPrimary,
+                        height: 1.3,
+                      ),
+                    ),
+                    if (dispute.resolutionNote != null && dispute.resolutionNote!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      const Divider(height: 1, color: AppColors.border),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Resolution Note:',
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.success,
+                        ),
+                      ),
+                      Text(
+                        dispute.resolutionNote!,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          color: AppColors.inkPrimary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+          ] else ...[
+            Text(
+              'Did something go wrong? If there is an issue with payment, work quality, no-show, or misconduct, flag this job for review rather than leaving a rating.',
+              style: GoogleFonts.inter(fontSize: 12, color: AppColors.inkMuted),
+            ),
+          ],
+
+          // Dispute Report Button
+          if (myDispute == null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.danger),
+                  shape: RoundedRectangleBorder(borderRadius: AppRadii.control),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  backgroundColor: AppColors.dangerSubtle,
+                ),
+                onPressed: () {
+                  openReportIssueBottomSheet(
+                    context,
+                    ref,
+                    jobId: job.id,
+                    reporterId: reporterId,
+                    reporterRole: isJobOwner ? 'employer' : 'worker',
+                    jobTitle: job.title,
+                    otherPartyId: otherPartyId.isNotEmpty ? otherPartyId : null,
+                  );
+                },
+                icon: const Icon(Icons.flag_outlined, size: 16, color: AppColors.danger),
+                label: Text(
+                  'Report an Issue',
+                  style: GoogleFonts.spaceMono(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.danger,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
 
 /// Loads and displays a worker's avatar from Supabase profiles.
@@ -815,6 +1136,7 @@ class _ApplicantRow extends ConsumerWidget {
   final VoidCallback onReject;
   final VoidCallback onRateWorker;
   final VoidCallback onRateEmployer;
+  final VoidCallback onReportIssue;
 
   const _ApplicantRow({
     required this.app,
@@ -826,16 +1148,26 @@ class _ApplicantRow extends ConsumerWidget {
     required this.onReject,
     required this.onRateWorker,
     required this.onRateEmployer,
+    required this.onReportIssue,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(profileDetailsProvider(app.workerId));
     final liveUid = SupabaseService().client.auth.currentUser?.id;
-    final isJobOwner = (liveUid != null && job.employerId != null && liveUid == job.employerId) ||
-                       (user.id != null && job.employerId != null && user.id == job.employerId);
-    final viewerIsThisWorker = liveUid == app.workerId || user.id == app.workerId;
+    // Prefer the app's active profile ID. In demo mode, Supabase may still
+    // have a different/anonymous session, which previously hid participant-only
+    // actions such as Report an issue.
+    final reporterId = (user.isLoggedIn && user.id != null && user.id!.isNotEmpty)
+        ? user.id!
+        : (liveUid ?? activeUserId);
+    final isJobOwner = job.employerId != null && reporterId == job.employerId;
+    final viewerIsThisWorker = reporterId == app.workerId;
     final isCompleted = job.status == 'completed';
+    final viewerIsParticipant = isJobOwner || viewerIsThisWorker;
+    final disputeAsync = (isCompleted && viewerIsParticipant && reporterId.isNotEmpty)
+        ? ref.watch(myJobDisputeProvider((jobId: job.id, reporterId: reporterId)))
+        : null;
 
     return profileAsync.when(
       data: (profileData) {
@@ -1010,6 +1342,16 @@ class _ApplicantRow extends ConsumerWidget {
                         onTap: onRateEmployer,
                         child: _buildMiniRateButton('Rate Employer 👍'),
                       ),
+                    if (isCompleted && viewerIsParticipant) ...[
+                      const SizedBox(height: 4),
+                      if (disputeAsync?.valueOrNull == null)
+                        GestureDetector(
+                          onTap: onReportIssue,
+                          child: _buildMiniIssueButton('Report an issue'),
+                        )
+                      else
+                        _buildMiniIssueStatus(disputeAsync!.valueOrNull!.status),
+                    ],
                   ],
                 ],
               ),
@@ -1022,6 +1364,47 @@ class _ApplicantRow extends ConsumerWidget {
         child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
       ),
       error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _buildMiniIssueButton(String label) {
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.dangerSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.danger),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.spaceMono(
+          fontSize: 9.5,
+          fontWeight: FontWeight.bold,
+          color: AppColors.danger,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniIssueStatus(String status) {
+    final label = status == 'resolved' ? 'ISSUE RESOLVED' : 'ISSUE UNDER REVIEW';
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.warningSubtle,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: AppColors.warning),
+      ),
+      child: Text(
+        label,
+        style: GoogleFonts.spaceMono(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: AppColors.warning,
+        ),
+      ),
     );
   }
 

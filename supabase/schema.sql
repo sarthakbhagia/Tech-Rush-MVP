@@ -171,3 +171,4 @@ CREATE POLICY "Ratings are readable by authenticated users"
     ON public.ratings FOR SELECT USING (auth.role() = 'authenticated');
 CREATE POLICY "Users can create ratings" 
     ON public.ratings FOR INSERT WITH CHECK (auth.uid() = from_user_id);
+
