@@ -18,6 +18,7 @@ import '../../providers/job_provider.dart';
 import '../../providers/locale_provider.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/job_category.dart';
+import '../../widgets/section_header.dart';
 import '../../widgets/address_bottom_sheet.dart';
 import '../../widgets/post_job_bottom_sheet.dart';
 import '../../widgets/empty_state.dart';
@@ -711,35 +712,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                currentLocale.languageCode == 'hi' ? 'मेरे कार्य' : 'MY JOB POSTINGS',
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.inkMuted,
-                                  letterSpacing: 1.0,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            GestureDetector(
-                              onTap: () => context.push('/listings'),
-                              child: Text(
-                                l10n.linkViewAll,
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: primaryColor,
-                                ),
-                              ),
-                            ),
-                          ],
+
+                        SectionHeader(
+                          title: currentLocale.languageCode == 'hi' ? 'मेरे कार्य' : 'MY JOB POSTINGS',
+                          actionText: l10n.linkViewAll,
+                          onActionTap: () => context.push('/listings'),
+                          actionColor: primaryColor,
                         ),
                         const SizedBox(height: AppSpacing.md),
                         _buildJobsFeed(dashboardJobsAsync, primaryColor, isEmployer, currentLocale),
@@ -757,18 +735,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
-                  // Today's Earnings Summary Card
+                  // Merged Earnings & Streak Card
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    child: _buildWorkerEarningsSummary(context, payouts, primaryColor),
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // 2. WOW-Factor Gamified Streak & Earnings Widget
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                    child: _buildWorkerEarningsStreakWidget(primaryColor, subtleColor, currentLocale),
+                    child: _buildWorkerEarningsAndStreakCard(context, payouts, primaryColor, subtleColor, currentLocale),
                   ),
                   const SizedBox(height: AppSpacing.lg),
 
@@ -778,14 +748,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          currentLocale.languageCode == 'hi' ? 'कार्य सारांश' : 'WORK LEDGER',
-                          style: GoogleFonts.spaceMono(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.inkMuted,
-                            letterSpacing: 1.0,
-                          ),
+                        SectionHeader(
+                          title: currentLocale.languageCode == 'hi' ? 'कार्य सारांश' : 'WORK LEDGER',
                         ),
                         const SizedBox(height: AppSpacing.md),
                         _buildStatsRow(statsAsync, primaryColor, subtleColor, isEmployer),
@@ -794,43 +758,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
-
-
                   // 5. Jobs near me feed
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                l10n.headerRecommendedJobsNearby,
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.inkMuted,
-                                  letterSpacing: 1.0,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: AppSpacing.xs),
-                            GestureDetector(
-                              onTap: () => context.push('/listings'),
-                              child: Text(
-                                l10n.linkViewAll,
-                                style: GoogleFonts.spaceMono(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: primaryColor,
-                                ),
-                              ),
-                            ),
-                          ],
+                        SectionHeader(
+                          title: l10n.headerRecommendedJobsNearby,
+                          actionText: l10n.linkViewAll,
+                          onActionTap: () => context.push('/listings'),
+                          actionColor: primaryColor,
                         ),
                         const SizedBox(height: AppSpacing.md),
                         _buildJobsFeed(dashboardJobsAsync, primaryColor, isEmployer, currentLocale),
@@ -1084,13 +1022,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildWorkerEarningsStreakWidget(Color primaryColor, Color subtleColor, Locale currentLocale) {
+  Widget _buildWorkerEarningsAndStreakCard(BuildContext context, List<Payout> payouts, Color primaryColor, Color subtleColor, Locale currentLocale) {
+    double paidSum = 1300.0;
+    double pendingSum = 556.0;
+
+    for (final p in payouts) {
+      if (p.status == 'paid') {
+        paidSum += p.amount;
+      } else {
+        pendingSum += p.amount;
+      }
+    }
+
+    final totalEarnings = paidSum + pendingSum;
     final List<String> days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     const int currentStreak = 5;
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.md + 2),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppRadii.card,
@@ -1100,6 +1050,117 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'TODAY\'S EARNINGS',
+                style: GoogleFonts.spaceMono(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.inkMuted,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  context.push('/payout-history');
+                },
+                child: Row(
+                  children: [
+                    Text(
+                      'History',
+                      style: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: primaryColor,
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded, size: 16, color: primaryColor),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            '₹${totalEarnings.toStringAsFixed(0)}',
+            style: GoogleFonts.spaceMono(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: AppColors.inkPrimary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Paid',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${paidSum.toStringAsFixed(0)}',
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                height: 40,
+                width: 1,
+                color: AppColors.border,
+              ),
+              const SizedBox(width: AppSpacing.lg),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.access_time_filled_rounded, size: 14, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Pending',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            color: AppColors.inkMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '₹${pendingSum.toStringAsFixed(0)}',
+                      style: GoogleFonts.spaceMono(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.orange.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const Divider(color: AppColors.border, height: AppSpacing.xl),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -1134,8 +1195,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(height: AppSpacing.sm),
-          // Day Tracker Circles
+          const SizedBox(height: AppSpacing.md),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(7, (index) {
@@ -1212,13 +1272,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           fontSize: 10,
                           color: AppColors.success,
                           fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        currentLocale.languageCode == 'hi' ? 'आज +₹800' : '+₹800 today',
-                        style: GoogleFonts.spaceMono(
-                          fontSize: 10,
-                          color: AppColors.inkMuted,
                         ),
                       ),
                     ],
@@ -1614,148 +1667,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildWorkerEarningsSummary(BuildContext context, List<Payout> payouts, Color primaryColor) {
-    double paidSum = 1300.0;
-    double pendingSum = 556.0;
-
-    for (final p in payouts) {
-      if (p.status == 'paid') {
-        paidSum += p.amount;
-      } else {
-        pendingSum += p.amount;
-      }
-    }
-
-    final totalEarnings = paidSum + pendingSum;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: AppRadii.card,
-        boxShadow: AppShadows.card,
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'TODAY\'S EARNINGS',
-                style: GoogleFonts.spaceMono(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.inkMuted,
-                  letterSpacing: 1.0,
-                ),
-              ),
-              GestureDetector(
-                onTap: () {
-                  context.push('/payout-history');
-                },
-                child: Row(
-                  children: [
-                    Text(
-                      'History',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: primaryColor,
-                      ),
-                    ),
-                    Icon(Icons.chevron_right_rounded, size: 16, color: primaryColor),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          Text(
-            '₹${totalEarnings.toStringAsFixed(0)}',
-            style: GoogleFonts.spaceMono(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: AppColors.inkPrimary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(color: AppColors.border),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Paid',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppColors.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${paidSum.toStringAsFixed(0)}',
-                      style: GoogleFonts.spaceMono(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                height: 40,
-                width: 1,
-                color: AppColors.border,
-              ),
-              const SizedBox(width: AppSpacing.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time_filled_rounded, size: 14, color: Colors.orange),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Pending',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            color: AppColors.inkMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₹${pendingSum.toStringAsFixed(0)}',
-                      style: GoogleFonts.spaceMono(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   Widget _buildInitialsAvatar(String initials, Color primaryColor, Color subtleColor) {
     return Container(
