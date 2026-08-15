@@ -23,7 +23,7 @@ KaamSetu digitizes daily labor dispatch into a clean, mobile-first experience:
 
 ## What's Built in the Repo Today
 
-* **Product Landing & Auth**: Splash screen, dedicated Sign In / Sign Up screens, and OTP-based phone verification (`otp_verification_bottom_sheet`) with countdown resend timers and toast alert feedback.
+* **Product Landing & Auth**: Splash screen, dedicated Sign In / Sign Up screens, and an OTP verification UI (`otp_verification_bottom_sheet`) with countdown resend timers and toast alert feedback. The OTP flow currently runs in a hardcoded/demo mode (no live SMS provider wired up yet) rather than sending real one-time codes.
 * **Dual-Mode Dashboard**: Live stats pulled from Supabase (`dashboard_stats_service`) instead of static placeholders — active postings, category distribution, and job dispatch triggers for Employer Mode; availability, sector radius, and expected daily wage for Worker Mode.
 * **Job Dispatch Ledger & Search**: Full-screen job search with real-time text query filtering, a dedicated `SearchScreen`, filterable results (`filter_provider`, `filter_bottom_sheet`), modal category selector (`AppBottomSheet`), and tabbed status management (`OPEN`, `ASSIGNED`, `COMPLETED`).
 * **Worker Matching Engine**: `worker_match_service` ranks and surfaces nearby workers for a posted job using distance, skill fit, and rating signals.
